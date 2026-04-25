@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const baseColors = {
   creme: { name: "Crème chaud", light: "#FAF6F0", hex: "#F4F1EA", medium: "#E8DFD3", dark: "#D8CEC1" },
@@ -537,7 +538,9 @@ function RepoImage({ src, alt, onMissingChange }) {
   if (missing) {
     return (
       <div className="grid h-full min-h-36 place-items-center bg-[#f8f5ef] p-3 text-center text-xs text-slate-500">
-        Image manquante: <code>{src}</code>
+        <span>
+          Image manquante: <code className="break-all">{src}</code>
+        </span>
       </div>
     );
   }
@@ -564,8 +567,31 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
     setPrompt(buildImagePrompt({ aiContext: { ...aiContext, imageMetadata }, imageKind, imageTitle }));
     setGeneratedImage("");
     setError("");
-    setOpen((current) => !current);
+    setOpen(true);
   };
+
+  const closePanel = () => {
+    setOpen(false);
+    setGeneratedImage("");
+    setError("");
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") closePanel();
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
 
   const generateImage = async () => {
     setError("");
@@ -588,7 +614,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
   };
 
   return (
-    <div className="relative space-y-2">
+    <>
       <button
         type="button"
         title="Générer une proposition IA"
@@ -598,60 +624,99 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
       >
         🪄
       </button>
-      {open ? (
-        <div className="absolute right-0 top-11 z-40 w-[min(82vw,420px)] space-y-2 rounded-md border border-black/10 bg-white p-2 shadow-xl">
-          <label className="block">
-            <span className="mb-1 block text-xs text-slate-500">Instruction IA</span>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="min-h-32 w-full rounded-md border border-black/15 bg-white p-2 text-xs"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={generateImage}
-            disabled={isGenerating || !prompt.trim()}
-            className="rounded-md border border-black/15 bg-slate-900 px-3 py-1 text-xs text-white disabled:opacity-50"
-          >
-            {isGenerating ? "Génération..." : "Générer une proposition"}
-          </button>
-          {error ? <div className="rounded-md bg-red-50 p-2 text-xs text-red-700">{error}</div> : null}
-          {generatedImage ? (
-            <div className="space-y-2">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <div className="mb-1 text-xs text-slate-500">Original</div>
-                  <img src={imageSrc} alt="Original" className="h-36 w-full rounded-md object-cover" />
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-slate-500">Proposition IA</div>
-                  <img src={generatedImage} alt="Proposition IA" className="h-36 w-full rounded-md object-cover" />
-                </div>
+      {open
+        ? createPortal(
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/45 p-3 backdrop-blur-sm md:p-6" role="dialog" aria-modal="true">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-xl border border-black/10 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-black/10 p-4 md:p-5">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Génération IA</p>
+                <h3 className="font-display text-2xl text-slate-900">{imageTitle}</h3>
+                <p className="mt-1 text-sm text-slate-600">{aiContext.roomLabel} · {imageKind}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={closePanel}
+                aria-label="Fermer la génération IA"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black/15 bg-white text-lg shadow-sm hover:bg-[#f9f7f3]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid gap-5 p-4 md:grid-cols-[0.95fr_1.25fr] md:p-5">
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Instruction IA</span>
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="min-h-72 w-full rounded-lg border border-black/15 bg-white p-3 text-sm leading-relaxed text-slate-800 md:min-h-[420px]"
+                  />
+                </label>
                 <button
                   type="button"
-                  onClick={() => {
-                    onAddToInspirations(generatedImage);
-                    setGeneratedImage("");
-                  }}
-                  className="rounded-md border border-black/15 bg-[#fcf8d5] px-3 py-1 text-xs"
+                  onClick={generateImage}
+                  disabled={isGenerating || !prompt.trim()}
+                  className="w-full rounded-md border border-black/15 bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm disabled:opacity-50 md:w-auto"
                 >
-                  Ajouter aux inspirations
+                  {isGenerating ? "Génération en cours..." : "Générer une proposition"}
                 </button>
-                <button type="button" onClick={() => onApply(generatedImage)} className="rounded-md border border-black/15 bg-white px-3 py-1 text-xs">
-                  Remplacer cette image
-                </button>
-                <button type="button" onClick={() => setGeneratedImage("")} className="rounded-md border border-black/15 bg-white px-3 py-1 text-xs">
-                  Ne pas la prendre
-                </button>
+                {error ? <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-slate-700">Original</div>
+                    <img src={imageSrc} alt="Original" className="h-64 w-full rounded-lg border border-black/10 object-cover md:h-[420px]" />
+                  </div>
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-slate-700">Proposition IA</div>
+                    {generatedImage ? (
+                      <img src={generatedImage} alt="Proposition IA" className="h-64 w-full rounded-lg border border-black/10 object-cover md:h-[420px]" />
+                    ) : (
+                      <div className="grid h-64 place-items-center rounded-lg border border-dashed border-black/15 bg-[#f9f7f3] p-4 text-center text-sm text-slate-500 md:h-[420px]">
+                        La proposition apparaîtra ici.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={!generatedImage}
+                    onClick={() => {
+                      onAddToInspirations(generatedImage);
+                      closePanel();
+                    }}
+                    className="rounded-md border border-black/15 bg-[#fcf8d5] px-4 py-2 text-sm font-medium disabled:opacity-40"
+                  >
+                    Ajouter aux inspirations
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!generatedImage}
+                    onClick={() => {
+                      onApply(generatedImage);
+                      closePanel();
+                    }}
+                    className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium disabled:opacity-40"
+                  >
+                    Remplacer cette image
+                  </button>
+                  <button type="button" onClick={closePanel} className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium">
+                    Ne pas la prendre
+                  </button>
+                </div>
               </div>
             </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+          </div>
+        </div>,
+          document.body,
+        )
+        : null}
+    </>
   );
 }
 
@@ -721,11 +786,11 @@ function PlanPreview({
 
   return (
     <div className="overflow-visible rounded-xl border border-black/10 bg-white">
-      <div className="flex items-center justify-between border-b border-black/10 p-3">
+      <div className="flex flex-col gap-3 border-b border-black/10 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm font-medium">Plan simplifié - {label}</div>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 overflow-x-auto text-xs">
               <button
                 type="button"
                 className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
@@ -750,7 +815,7 @@ function PlanPreview({
           <AddImageButton onFile={handleAddImage} />
         </div>
       </div>
-      <div className="group relative h-[360px] bg-[#efe7de]">
+      <div className="group relative h-64 bg-[#efe7de] sm:h-80 lg:h-[360px]">
         {currentSrc ? (
           <RepoImage src={currentSrc} alt={`Plan ${label}`} onMissingChange={(missing) => setMissingCards((prev) => ({ ...prev, [currentKey]: missing }))} />
         ) : (
@@ -877,36 +942,36 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-display text-xl">Inspirations</h3>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Précédent
-            </button>
-            <span>
-              {page + 1}/{pageCount}
-            </span>
-            <button
-              type="button"
-              className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
-              disabled={page >= pageCount - 1}
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            >
-              Suivant
-            </button>
+              <button
+                type="button"
+                className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Précédent
+              </button>
+              <span>
+                {page + 1}/{pageCount}
+              </span>
+              <button
+                type="button"
+                className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                Suivant
+              </button>
             </div>
           ) : null}
           <AddImageButton onFile={handleAddImage} />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleItems.map(({ src, cardKey, displayIndex: i }) => (
           (() => {
             const imageSrc = uploadedImages[cardKey] || src;
@@ -915,7 +980,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
 
             return (
               <div key={cardKey} className="overflow-visible rounded-xl border border-black/10 bg-white">
-                <div className="group relative h-44">
+                <div className="group relative h-56 sm:h-48">
                   <RepoImage src={imageSrc} alt={`${label} inspiration ${i + 1}`} onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
                   <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                     <AiImageEditor
@@ -1042,43 +1107,43 @@ function MaterialsSection({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-display text-xl">Matériaux</h3>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Précédent
-            </button>
-            <span>
-              {page + 1}/{pageCount}
-            </span>
-            <button
-              type="button"
-              className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
-              disabled={page >= pageCount - 1}
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            >
-              Suivant
-            </button>
+              <button
+                type="button"
+                className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Précédent
+              </button>
+              <span>
+                {page + 1}/{pageCount}
+              </span>
+              <button
+                type="button"
+                className="rounded-md border border-black/15 px-2 py-1 disabled:opacity-40"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                Suivant
+              </button>
             </div>
           ) : null}
           <AddImageButton onFile={handleAddImage} />
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleItems.map(({ item, cardKey, displayIndex: index }) => {
           const imageSrc = materialUploads[cardKey] || item.src;
           const linkValue = materialLinks[cardKey] ?? item.link ?? "";
           const isMissing = !!missingCards[cardKey];
           return (
             <div key={cardKey} className="overflow-visible rounded-xl border border-black/10 bg-white">
-              <div className="group relative h-40">
+              <div className="group relative h-52 sm:h-48">
                 <RepoImage src={imageSrc} alt={`${item.label} ${item.value}`} onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
                 <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   <AiImageEditor
@@ -1532,19 +1597,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
-      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-8">
-        <header className="rounded-xl border border-black/10 bg-white p-5">
+      <main className="mx-auto w-full max-w-7xl space-y-5 p-3 sm:p-4 md:space-y-6 md:p-8">
+        <header className="rounded-xl border border-black/10 bg-white p-4 md:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="font-display text-xs uppercase tracking-[0.2em] text-slate-500">Palette appartement interactive</p>
-              <h1 className="font-display text-3xl">Univers rétro, coloré, doux</h1>
+              <h1 className="font-display text-2xl md:text-3xl">Univers rétro, coloré, doux</h1>
               <p className="mt-2 text-sm text-slate-600">Projet de Violette et Matthieu Jungfer pour Botzaris.</p>
             </div>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex w-full flex-col items-start gap-1 sm:w-auto sm:items-end">
               <button
                 type="button"
                 onClick={saveProject}
-                className="rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700"
+                className="w-full rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 sm:w-auto"
               >
                 Save
               </button>
@@ -1553,13 +1618,13 @@ export default function App() {
           </div>
         </header>
 
-        <section className="sticky top-2 z-30 rounded-xl border border-black/10 bg-white/95 p-4 backdrop-blur md:top-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+        <section className="sticky top-2 z-30 rounded-xl border border-black/10 bg-white/95 p-3 backdrop-blur md:top-4 md:p-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {activeRooms.map((key) => (
               <button
                 key={key}
                 onClick={() => setRoom(key)}
-                className={`rounded-lg border px-3 py-2 text-sm ${
+                className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
                   room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
                 }`}
               >
@@ -1571,7 +1636,7 @@ export default function App() {
               onClick={addRoom}
               title="Ajouter une pièce"
               aria-label="Ajouter une pièce"
-              className="grid h-10 w-10 place-items-center rounded-full border border-black/15 bg-white text-xl leading-none shadow-sm hover:bg-[#fcf8d5]"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-black/15 bg-white text-xl leading-none shadow-sm hover:bg-[#fcf8d5]"
             >
               +
             </button>
