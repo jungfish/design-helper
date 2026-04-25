@@ -531,10 +531,6 @@ function RepoImage({ src, alt, onMissingChange }) {
     setMissing(false);
   }, [src]);
 
-  useEffect(() => {
-    if (onMissingChange) onMissingChange(missing);
-  }, [missing, onMissingChange]);
-
   if (missing) {
     return (
       <div className="grid h-full min-h-36 place-items-center bg-[#f8f5ef] p-3 text-center text-xs text-slate-500">
@@ -550,8 +546,14 @@ function RepoImage({ src, alt, onMissingChange }) {
       alt={alt}
       className="h-full w-full object-cover"
       loading="lazy"
-      onLoad={() => setMissing(false)}
-      onError={() => setMissing(true)}
+      onLoad={() => {
+        setMissing(false);
+        onMissingChange?.(false);
+      }}
+      onError={() => {
+        setMissing(true);
+        onMissingChange?.(true);
+      }}
     />
   );
 }
@@ -1202,6 +1204,7 @@ export default function App() {
   const [room, setRoom] = useState("salon");
   const [globalAccent, setGlobalAccent] = useState("butter");
   const [warmth, setWarmth] = useState(60);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customRooms, setCustomRooms] = useState(() => {
     try {
       const raw = localStorage.getItem(CUSTOM_ROOMS_STORAGE_KEY);
@@ -1397,6 +1400,7 @@ export default function App() {
     setRoomNuances((prev) => ({ ...prev, [key]: { dominant: "moyen", secondary: "moyen", accent: globalAccent } }));
     setRoomNotes((prev) => ({ ...prev, [key]: "" }));
     setRoom(key);
+    setMobileMenuOpen(false);
   };
 
   const deleteRoom = () => {
@@ -1425,6 +1429,7 @@ export default function App() {
     setRoomNuances((prev) => removeRoomData(prev, room));
     setRoomNotes((prev) => removeRoomData(prev, room));
     setRoom(nextRoom);
+    setMobileMenuOpen(false);
   };
 
   const addAiInspiration = (targetRoom, image) => {
@@ -1597,6 +1602,55 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
+      <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-3 py-2 backdrop-blur sm:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            aria-label="Ouvrir la navigation des pièces"
+            className="grid h-10 w-10 place-items-center rounded-md border border-black/15 bg-white text-xl leading-none shadow-sm"
+          >
+            ☰
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{preset.label}</div>
+            {lastSavedAt ? <div className="truncate text-[11px] text-slate-500">Sauvé: {new Date(lastSavedAt).toLocaleString("fr-FR")}</div> : null}
+          </div>
+          <button
+            type="button"
+            onClick={saveProject}
+            className="rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm"
+          >
+            Save
+          </button>
+        </div>
+        {mobileMenuOpen ? (
+          <div className="mt-2 grid max-h-[60vh] gap-2 overflow-y-auto rounded-lg border border-black/10 bg-white p-2 shadow-lg">
+            {activeRooms.map((key) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setRoom(key);
+                  setMobileMenuOpen(false);
+                }}
+                className={`rounded-md border px-3 py-2 text-left text-sm ${
+                  room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
+                }`}
+              >
+                {allRoomPresets[key].label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={addRoom}
+              className="rounded-md border border-black/15 bg-white px-3 py-2 text-left text-sm font-medium"
+            >
+              + Ajouter une pièce
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       <main className="mx-auto w-full max-w-7xl space-y-5 p-3 sm:p-4 md:space-y-6 md:p-8">
         <header className="rounded-xl border border-black/10 bg-white p-4 md:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1605,7 +1659,7 @@ export default function App() {
               <h1 className="font-display text-2xl md:text-3xl">Univers rétro, coloré, doux</h1>
               <p className="mt-2 text-sm text-slate-600">Projet de Violette et Matthieu Jungfer pour Botzaris.</p>
             </div>
-            <div className="flex w-full flex-col items-start gap-1 sm:w-auto sm:items-end">
+            <div className="hidden w-full flex-col items-start gap-1 sm:flex sm:w-auto sm:items-end">
               <button
                 type="button"
                 onClick={saveProject}
@@ -1618,7 +1672,7 @@ export default function App() {
           </div>
         </header>
 
-        <section className="sticky top-2 z-30 rounded-xl border border-black/10 bg-white/95 p-3 backdrop-blur md:top-4 md:p-4">
+        <section className="sticky top-2 z-30 hidden rounded-xl border border-black/10 bg-white/95 p-3 backdrop-blur sm:block md:top-4 md:p-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {activeRooms.map((key) => (
               <button
