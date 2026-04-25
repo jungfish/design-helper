@@ -1,4 +1,4 @@
-const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL || "gpt-4.1-mini";
 
 function dataUrlToBlob(dataUrl) {
@@ -41,7 +41,31 @@ export async function parseJsonBody(req) {
   });
 }
 
-export async function analyzeImage({ image, context }) {
+function parseMetadata(text, section) {
+  try {
+    const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      type: parsed.type || section || "reference",
+      style: parsed.style || "",
+      inspiration: parsed.inspiration || "",
+      materials: Array.isArray(parsed.materials) ? parsed.materials.slice(0, 5) : [],
+      colors: Array.isArray(parsed.colors) ? parsed.colors.slice(0, 5) : [],
+      details: Array.isArray(parsed.details) ? parsed.details.slice(0, 5) : [],
+    };
+  } catch {
+    return {
+      type: section || "reference",
+      style: "",
+      inspiration: text,
+      materials: [],
+      colors: [],
+      details: [],
+    };
+  }
+}
+
+export async function analyzeImage({ image, context, section }) {
   if (!process.env.OPENAI_API_KEY) {
     const error = new Error("OPENAI_API_KEY est manquante dans Vercel.");
     error.status = 500;
@@ -69,12 +93,14 @@ export async function analyzeImage({ image, context }) {
             {
               type: "input_text",
               text: [
-                "Analyse cette image pour nourrir un prompt de génération d'image d'intérieur.",
-                `Contexte: ${context || "image d'inspiration appartement"}.`,
-                "Réponds en français, en 2 phrases maximum.",
-                "Mentionne le style, les couleurs, les matières, les objets forts et l'ambiance. N'invente pas de marque.",
-              ].join("\n"),
-            },
+                    "Analyse cette image pour créer des métadonnées courtes de design intérieur.",
+                    `Contexte: ${context || "image d'inspiration appartement"}.`,
+                    `Section de l'app: ${section || "reference"}.`,
+                    "Réponds uniquement en JSON valide, sans markdown.",
+                    "Schéma exact: {\"type\":\"photo | dessin architecte | plan | croquis | moodboard | matériau | référence produit\",\"style\":\"string court\",\"inspiration\":\"string court\",\"materials\":[\"...\"],\"colors\":[\"...\"],\"details\":[\"...\"]}.",
+                    "Les champs doivent être courts, en français, orientés interior design. N'invente pas de marque.",
+                  ].join("\n"),
+                },
             { type: "input_image", image_url: image },
           ],
         },
@@ -89,7 +115,7 @@ export async function analyzeImage({ image, context }) {
     throw error;
   }
 
-  return payload.output_text || "";
+  return parseMetadata(payload.output_text || "", section);
 }
 
 export async function generateImage({ image, prompt }) {
@@ -111,6 +137,8 @@ export async function generateImage({ image, prompt }) {
   form.append("prompt", prompt);
   form.append("size", "1024x1024");
   form.append("quality", "medium");
+  form.append("output_format", "webp");
+  form.append("output_compression", "82");
   form.append("image", blob, `source.${blob.type.split("/")[1] || "png"}`);
 
   const openaiResponse = await fetch("https://api.openai.com/v1/images/edits", {
@@ -129,7 +157,7 @@ export async function generateImage({ image, prompt }) {
   }
 
   const imageData = payload.data?.[0];
-  if (imageData?.b64_json) return `data:image/png;base64,${imageData.b64_json}`;
+  if (imageData?.b64_json) return `data:image/webp;base64,${imageData.b64_json}`;
   if (imageData?.url) return imageData.url;
 
   const error = new Error("Réponse OpenAI sans image exploitable.");

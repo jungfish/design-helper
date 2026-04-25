@@ -240,14 +240,59 @@ async function imageSrcToDataUrl(src) {
   return readFileAsDataUrl(blob);
 }
 
+function normalizeImageMetadata(metadata, fallbackType = "reference") {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
+    return {
+      type: fallbackType,
+      style: "",
+      inspiration: metadata,
+      materials: [],
+      colors: [],
+      details: [],
+    };
+  }
+  return {
+    type: metadata.type || fallbackType,
+    style: metadata.style || "",
+    inspiration: metadata.inspiration || "",
+    materials: Array.isArray(metadata.materials) ? metadata.materials : [],
+    colors: Array.isArray(metadata.colors) ? metadata.colors : [],
+    details: Array.isArray(metadata.details) ? metadata.details : [],
+  };
+}
+
+function metadataToPrompt(metadata, fallbackType = "reference") {
+  const data = normalizeImageMetadata(metadata, fallbackType);
+  if (!data) return "";
+  return [
+    `type ${data.type}`,
+    data.style ? `style: ${data.style}` : "",
+    data.inspiration ? `inspiration: ${data.inspiration}` : "",
+    data.materials.length ? `matières: ${data.materials.join(", ")}` : "",
+    data.colors.length ? `couleurs: ${data.colors.join(", ")}` : "",
+    data.details.length ? `détails: ${data.details.join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
 function buildImagePrompt({ aiContext, imageKind, imageTitle }) {
+  const currentMetadata = metadataToPrompt(aiContext.imageMetadata, imageKind);
+  const roomMetadata = (aiContext.roomImageMetadata || [])
+    .map((item) => metadataToPrompt(item.metadata, item.kind))
+    .filter(Boolean)
+    .slice(-8)
+    .join("\n- ");
+
   return [
     `Propose une modification réaliste et éditoriale de cette image pour la pièce: ${aiContext.roomLabel}.`,
     `Type d'image: ${imageKind}. Élément: ${imageTitle}.`,
     `Ligne directrice: ${aiContext.line}`,
     `Nuances choisies: dominante ${aiContext.dominantName} (${aiContext.dominantHex}), secondaire ${aiContext.secondaryName} (${aiContext.secondaryHex}), accent ${aiContext.accentName} (${aiContext.accentHex}).`,
     aiContext.roomNote ? `Notes utilisateur: ${aiContext.roomNote}` : "Notes utilisateur: aucune note spécifique.",
-    aiContext.imageAnalysis ? `Analyse de l'image source: ${aiContext.imageAnalysis}` : "Analyse de l'image source: utilise l'image visible comme référence de style, de composition et de matières.",
+    currentMetadata ? `Métadonnées de l'image source: ${currentMetadata}` : "Métadonnées de l'image source: utilise l'image visible comme référence de style, de composition et de matières.",
+    roomMetadata ? `Contexte visuel des autres images de la pièce:\n- ${roomMetadata}` : "Contexte visuel des autres images de la pièce: aucun autre contexte indexé.",
     `Contraintes: univers rétro, coloré, doux, éditorial; aucun accent rouge; préserver la composition générale de l'image; proposer une version plus cohérente avec la palette de la pièce; rendu lumineux, habitable, naturel, pas de texte ajouté.`,
   ].join("\n");
 }
@@ -308,12 +353,12 @@ function removeObjectKey(object, key) {
   return next;
 }
 
-async function analyzeImageForContext({ image, context }) {
+async function analyzeImageForContext({ image, context, section }) {
   try {
     const response = await fetch("/api/analyze-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, context }),
+      body: JSON.stringify({ image, context, section }),
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Analyse impossible.");
@@ -479,7 +524,7 @@ function RepoImage({ src, alt, onMissingChange }) {
   );
 }
 
-function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageAnalysis, onApply, onAddToInspirations }) {
+function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetadata, onApply, onAddToInspirations }) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [generatedImage, setGeneratedImage] = useState("");
@@ -487,7 +532,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageAnalys
   const [error, setError] = useState("");
 
   const openPanel = () => {
-    setPrompt(buildImagePrompt({ aiContext: { ...aiContext, imageAnalysis }, imageKind, imageTitle }));
+    setPrompt(buildImagePrompt({ aiContext: { ...aiContext, imageMetadata }, imageKind, imageTitle }));
     setGeneratedImage("");
     setError("");
     setOpen((current) => !current);
@@ -623,6 +668,7 @@ function PlanPreview({
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Plan ${label}, pièce ${label}`,
+        section: "plan",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [currentKey]: analysis }));
     }
@@ -638,6 +684,7 @@ function PlanPreview({
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Plan ajouté ${label}`,
+        section: "plan",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [nextKey]: analysis }));
     }
@@ -687,7 +734,7 @@ function PlanPreview({
               imageKind="plan"
               imageTitle={`Plan ${label}`}
               aiContext={aiContext}
-              imageAnalysis={imageAnalysis[currentKey]}
+              imageMetadata={imageAnalysis[currentKey]}
               onApply={(image) => setPlanUploads((prev) => ({ ...prev, [currentKey]: image }))}
               onAddToInspirations={(image) => addAiInspiration(room, image)}
             />
@@ -773,6 +820,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Inspiration ${label}, pièce ${label}`,
+        section: "inspiration",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [cardKey]: analysis }));
     }
@@ -788,6 +836,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Inspiration ajoutée ${label}`,
+        section: "inspiration",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [nextKey]: analysis }));
     }
@@ -845,7 +894,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
                       imageKind="inspiration"
                       imageTitle={`${label} inspiration ${i + 1}`}
                       aiContext={aiContext}
-                      imageAnalysis={imageAnalysis[cardKey]}
+                      imageMetadata={imageAnalysis[cardKey]}
                       onApply={(image) => setUploadedImages((prev) => ({ ...prev, [cardKey]: image }))}
                       onAddToInspirations={(image) => addAiInspiration(room, image)}
                     />
@@ -876,7 +925,6 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
                 </div>
                 <div className="space-y-2 p-3">
                   {isMissing ? <div className="text-xs text-slate-500">Image manquante: ajoute une image avec le bouton +.</div> : null}
-                  {imageAnalysis[cardKey] ? <p className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">{imageAnalysis[cardKey]}</p> : null}
                   {linkValue ? (
                     <a href={linkValue} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-2">
                       Voir l'objet
@@ -937,6 +985,7 @@ function MaterialsSection({
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Matériau ${room}, ${cardKey}`,
+        section: "matériau",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [cardKey]: analysis }));
     }
@@ -952,6 +1001,7 @@ function MaterialsSection({
       const analysis = await analyzeImageForContext({
         image: data,
         context: `Matériau ajouté ${room}`,
+        section: "matériau",
       });
       if (analysis) setImageAnalysis((prev) => ({ ...prev, [nextKey]: analysis }));
     }
@@ -1007,7 +1057,7 @@ function MaterialsSection({
                     imageKind="matériau"
                     imageTitle={`${item.label} - ${item.value}`}
                     aiContext={aiContext}
-                    imageAnalysis={imageAnalysis[cardKey]}
+                    imageMetadata={imageAnalysis[cardKey]}
                     onApply={(image) => setMaterialUploads((prev) => ({ ...prev, [cardKey]: image }))}
                     onAddToInspirations={(image) => addAiInspiration(room, image)}
                   />
@@ -1040,7 +1090,6 @@ function MaterialsSection({
                   <div className="text-xs uppercase tracking-wide text-slate-500">{item.label}</div>
                   <div className="text-sm font-medium">{item.value}</div>
                 {isMissing ? <div className="text-xs text-slate-500">Image manquante: ajoute une image avec le bouton +.</div> : null}
-                {imageAnalysis[cardKey] ? <p className="rounded-md bg-slate-50 p-2 text-xs text-slate-600">{imageAnalysis[cardKey]}</p> : null}
                 {linkValue ? (
                   <a className="text-sm underline underline-offset-2" href={linkValue} target="_blank" rel="noreferrer">
                     {item.cta || "Voir le produit"}
@@ -1173,6 +1222,13 @@ export default function App() {
   const accentName = activeNuance.accent === "bois" ? "Chêne clair" : accents[activeNuance.accent]?.name || accents[globalAccent].name;
   const previewSecondaryHex = warmth < 40 ? baseColors.bleu.light : warmth > 70 ? baseColors.bois.light : secondaryHex;
   const previewAccentHex = warmth < 40 ? accents.sky.hex : warmth > 70 ? accents.butter.hex : accentHex;
+  const roomImageMetadata = Object.entries(imageAnalysis)
+    .filter(([key, metadata]) => key.startsWith(`${room}-`) && normalizeImageMetadata(metadata))
+    .map(([key, metadata]) => ({
+      key,
+      kind: key.includes("-plan-") ? "plan" : key.includes("-material-") ? "matériau" : "inspiration",
+      metadata,
+    }));
   const aiContext = {
     roomLabel: preset.label,
     line: preset.line,
@@ -1183,6 +1239,7 @@ export default function App() {
     accentName,
     accentHex,
     roomNote: roomNotes[room] || "",
+    roomImageMetadata,
   };
 
   const updateRoomNuance = (key, value) => {

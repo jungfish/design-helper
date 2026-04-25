@@ -18,7 +18,7 @@ OPENAI_API_KEY=sk-proj-... npm run api
 Options:
 
 ```bash
-OPENAI_IMAGE_MODEL=gpt-image-1
+OPENAI_IMAGE_MODEL=gpt-image-2
 API_PORT=5175
 ```
 
@@ -40,7 +40,7 @@ Ajoute ces variables dans Vercel, dans `Project Settings > Environment Variables
 
 ```bash
 OPENAI_API_KEY=sk-proj-...
-OPENAI_IMAGE_MODEL=gpt-image-1
+OPENAI_IMAGE_MODEL=gpt-image-2
 OPENAI_ANALYSIS_MODEL=gpt-4.1-mini
 ```
 
