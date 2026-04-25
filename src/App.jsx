@@ -633,7 +633,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
             <div className="flex items-start justify-between gap-4 border-b border-black/10 p-4 md:p-5">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Génération IA</p>
-                <h3 className="font-display text-2xl text-slate-900">{imageTitle}</h3>
+                <h3 className="type-h3">{imageTitle}</h3>
                 <p className="mt-1 text-sm text-slate-600">{aiContext.roomLabel} · {imageKind}</p>
               </div>
               <button
@@ -945,7 +945,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-display text-xl">Inspirations</h3>
+        <h3 className="type-h3">Inspirations</h3>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
@@ -1110,7 +1110,7 @@ function MaterialsSection({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="font-display text-xl">Matériaux</h3>
+        <h3 className="type-h3">Matériaux</h3>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
@@ -1655,8 +1655,8 @@ export default function App() {
         <header className="rounded-xl border border-black/10 bg-white p-4 md:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-display text-xs uppercase tracking-[0.2em] text-slate-500">Palette appartement interactive</p>
-              <h1 className="font-display text-2xl md:text-3xl">Univers rétro, coloré, doux</h1>
+              <p className="font-sans text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Palette appartement interactive</p>
+              <h1 className="type-h1">Univers rétro, coloré, doux</h1>
               <p className="mt-2 text-sm text-slate-600">Projet de Violette et Matthieu Jungfer pour Botzaris.</p>
             </div>
             <div className="hidden w-full flex-col items-start gap-1 sm:flex sm:w-auto sm:items-end">
@@ -1699,7 +1699,7 @@ export default function App() {
 
         <section className="grid gap-6 xl:grid-cols-2">
           <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
-            <h2 className="font-display text-2xl">Module Couleur Global</h2>
+            <h2 className="type-h2">Module Couleur Global</h2>
             <div>
               <label className="mb-1 block text-sm font-medium">Chaleur globale: {warmth}</label>
               <input
@@ -1743,7 +1743,7 @@ export default function App() {
 
           <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="font-display text-2xl">{preset.label}</h2>
+              <h2 className="type-h2">{preset.label}</h2>
               {activeRooms.length > 1 ? (
                 <button
                   type="button"
@@ -1844,7 +1844,7 @@ export default function App() {
             setDeletedImages={setDeletedImages}
           />
           <div className="rounded-xl border border-black/10 bg-white p-4">
-            <h2 className="font-display text-2xl">Nuancier Recommandé</h2>
+            <h2 className="type-h2">Nuancier Recommandé</h2>
             <p className="mb-3 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active. La chaleur globale module seulement cet aperçu.</p>
             <div className="overflow-hidden rounded-xl border border-black/10">
               <div className="h-6" style={{ backgroundColor: baseColors.creme.hex }} />

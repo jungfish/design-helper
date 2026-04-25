@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@500;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,11 +10,65 @@
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
   background: #ffffff;
   color: #27313c;
 }
 
 a {
   color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+}
+
+button {
+  font-weight: 500;
+}
+
+input,
+textarea,
+select {
+  font-weight: 400;
+}
+
+label {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+@layer components {
+  .type-h1 {
+    @apply font-display text-[24px] font-semibold leading-[28px] tracking-normal text-slate-900 md:text-[32px] md:leading-[40px];
+  }
+
+  .type-h2 {
+    @apply font-display text-[20px] font-semibold leading-[24px] tracking-normal text-slate-900 md:text-[24px] md:leading-[32px];
+  }
+
+  .type-h3 {
+    @apply font-display text-[18px] font-medium leading-[22px] tracking-normal text-slate-900 md:text-[20px] md:leading-[28px];
+  }
+
+  .type-body-large {
+    @apply font-sans text-[16px] font-normal leading-[24px];
+  }
+
+  .type-body {
+    @apply font-sans text-[14px] font-normal leading-[20px];
+  }
+
+  .type-small {
+    @apply font-sans text-[12px] font-normal leading-[16px];
+  }
 }

@@ -15,8 +15,9 @@ export default {
         lin: "#E9DFC8",
       },
       fontFamily: {
-        display: ["Georgia", "Times New Roman", "serif"],
-        body: ["ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["Sora", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        body: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
     },
   },
