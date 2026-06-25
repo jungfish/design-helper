@@ -74,7 +74,7 @@ createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== "POST" || !["/api/generate-image", "/api/analyze-image"].includes(req.url)) {
+  if (req.method !== "POST" || !["/api/generate-image", "/api/analyze-image", "/api/upload-image"].includes(req.url)) {
     sendJson(res, 404, { error: "Route inconnue." });
     return;
   }
@@ -85,7 +85,31 @@ createServer(async (req, res) => {
       return;
     }
 
-    const { image, prompt, context, section } = await readJson(req);
+    const body = await readJson(req);
+
+    if (req.url === "/api/upload-image") {
+      const { dataUrl, filename } = body;
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        sendJson(res, 200, { url: dataUrl });
+        return;
+      }
+      const { put } = await import("@vercel/blob");
+      const match = dataUrl?.match(/^data:(.+);base64,(.+)$/);
+      if (!match) {
+        sendJson(res, 400, { error: "dataUrl invalide." });
+        return;
+      }
+      const [, mimeType, base64] = match;
+      const buffer = Buffer.from(base64, "base64");
+      const blob = await put(filename || `image-${Date.now()}`, buffer, {
+        access: "public",
+        contentType: mimeType,
+      });
+      sendJson(res, 200, { url: blob.url });
+      return;
+    }
+
+    const { image, prompt, context, section } = body;
     if (req.url === "/api/analyze-image") {
       if (!image) {
         sendJson(res, 400, { error: "Image requise." });

@@ -127,26 +127,26 @@ const INITIAL_ROOM_NUANCES = {
 
 const roomInspirationImages = {
   salon: ["/images/salon/01.jpg", "/images/salon/02.jpg", "/images/salon/03.jpg"],
-  cuisine: ["/images/cuisine/01.webp", "/images/cuisine/02.webp", "/images/cuisine/03.jpg"],
+  cuisine: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/cuisine/01.webp", "https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/cuisine/02.webp", "/images/cuisine/03.jpg"],
   entree: ["/images/entree/01.jpg", "/images/entree/02.jpg", "/images/entree/03.jpg"],
   parents: ["/images/parents/01.jpg", "/images/parents/02.jpg", "/images/parents/03.jpg"],
   enfant: ["/images/enfant/01.jpg", "/images/enfant/02.jpg", "/images/enfant/03.jpg"],
   bureau: ["/images/bureau/01.jpg", "/images/bureau/02.jpg", "/images/bureau/03.jpg"],
   sdb: ["/images/sdb/01.jpg", "/images/sdb/02.jpg", "/images/sdb/03.jpg"],
-  vinyle: ["/images/vinyle/01.webp", "/images/vinyle/02.jpg", "/images/vinyle/03.jpg"],
-  cellier: ["/images/cellier/01.webp", "/images/cellier/02.jpg", "/images/cellier/03.jpg"],
+  vinyle: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/vinyle/01.webp", "/images/vinyle/02.jpg", "/images/vinyle/03.jpg"],
+  cellier: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/cellier/01.webp", "/images/cellier/02.jpg", "/images/cellier/03.jpg"],
 };
 
 const roomPlanImages = {
-  salon: ["/images/plan/salon-bibliotheque.webp"],
-  cuisine: ["/images/plan/cuisine-plan.webp", "/images/plan/cuisine-banquette-plan.webp"],
+  salon: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/salon-bibliotheque.webp"],
+  cuisine: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/cuisine-plan.webp", "https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/cuisine-banquette-plan.webp"],
   entree: ["/images/plan/entree-01.jpg"],
-  parents: ["/images/plan/chambre.webp"],
-  enfant: ["/images/plan/chambre-enfant.webp"],
-  bureau: ["/images/plan/bureau-verriere.webp"],
-  sdb: ["/images/plan/toilette.webp"],
+  parents: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/chambre.webp"],
+  enfant: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/chambre-enfant.webp"],
+  bureau: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/bureau-verriere.webp"],
+  sdb: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/toilette.webp"],
   vinyle: ["/images/plan/vinyle-01.jpg"],
-  cellier: ["/images/plan/cellier-plan.webp"],
+  cellier: ["https://8jyffbtqylmfilvg.public.blob.vercel-storage.com/plan/cellier-plan.webp"],
 };
 
 const materialsByRoom = {
@@ -268,6 +268,27 @@ async function imageSrcToDataUrl(src) {
   if (!response.ok) throw new Error("Impossible de charger l'image source.");
   const blob = await response.blob();
   return readFileAsDataUrl(blob);
+}
+
+function extFromDataUrl(dataUrl) {
+  const mime = dataUrl.match(/^data:image\/([^;]+)/)?.[1] || "jpg";
+  return mime === "jpeg" ? "jpg" : mime;
+}
+
+async function uploadToBlob(dataUrl, filename) {
+  if (!dataUrl?.startsWith("data:")) return dataUrl;
+  try {
+    const res = await fetch("/api/upload-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl, filename }),
+    });
+    if (!res.ok) throw new Error();
+    const { url } = await res.json();
+    return url;
+  } catch {
+    return dataUrl;
+  }
 }
 
 function normalizeImageMetadata(metadata, fallbackType = "reference") {
@@ -484,7 +505,7 @@ function AddImageButton({ onFile }) {
         title="Ajouter une image"
         aria-label="Ajouter une image"
         onClick={() => inputRef.current?.click()}
-        className="grid h-9 w-9 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
+        className="grid h-11 w-11 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
       >
         +
       </button>
@@ -502,7 +523,7 @@ function LinkAction({ value, onChange }) {
         title="Ajouter un lien"
         aria-label="Ajouter un lien"
         onClick={() => setOpen((current) => !current)}
-        className={`grid h-9 w-9 place-items-center rounded-md border border-black/15 bg-white/90 text-sm text-slate-950 shadow-sm backdrop-blur hover:bg-white ${
+        className={`grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-sm text-slate-950 shadow-sm backdrop-blur hover:bg-white ${
           value ? "ring-2 ring-slate-900/20" : ""
         }`}
       >
@@ -563,6 +584,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
   const [prompt, setPrompt] = useState("");
   const [generatedImage, setGeneratedImage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState("");
 
   const openPanel = () => {
@@ -622,7 +644,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
         title="Générer une proposition IA"
         aria-label="Générer une proposition IA"
         onClick={openPanel}
-        className="grid h-9 w-9 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-medium text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+        className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-medium text-slate-950 shadow-sm backdrop-blur hover:bg-white"
       >
         🪄
       </button>
@@ -640,7 +662,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
                 type="button"
                 onClick={closePanel}
                 aria-label="Fermer la génération IA"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black/15 bg-white text-lg shadow-sm hover:bg-[#f9f7f3]"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-black/15 bg-white text-lg shadow-sm hover:bg-[#f9f7f3]"
               >
                 ×
               </button>
@@ -687,9 +709,12 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={!generatedImage}
-                    onClick={() => {
-                      onAddToInspirations(generatedImage);
+                    disabled={!generatedImage || isApplying}
+                    onClick={async () => {
+                      setIsApplying(true);
+                      const url = await uploadToBlob(generatedImage, `ai-${Date.now()}.webp`);
+                      onAddToInspirations(url);
+                      setIsApplying(false);
                       closePanel();
                     }}
                     className="rounded-md border border-black/15 bg-[#fcf8d5] px-4 py-2 text-sm font-medium disabled:opacity-40"
@@ -698,9 +723,12 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
                   </button>
                   <button
                     type="button"
-                    disabled={!generatedImage}
-                    onClick={() => {
-                      onApply(generatedImage);
+                    disabled={!generatedImage || isApplying}
+                    onClick={async () => {
+                      setIsApplying(true);
+                      const url = await uploadToBlob(generatedImage, `ai-${Date.now()}.webp`);
+                      onApply(url);
+                      setIsApplying(false);
                       closePanel();
                     }}
                     className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium disabled:opacity-40"
@@ -760,9 +788,10 @@ function PlanPreview({
     if (!file) return;
     const data = await readFileAsDataUrl(file);
     if (typeof data === "string") {
-      setPlanUploads((prev) => ({ ...prev, [currentKey]: data }));
+      const url = await uploadToBlob(data, `${currentKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      setPlanUploads((prev) => ({ ...prev, [currentKey]: url }));
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Plan ${label}, pièce ${label}`,
         section: "plan",
       });
@@ -776,9 +805,10 @@ function PlanPreview({
     if (typeof data === "string") {
       const nextIndex = (extraPlanImages[room] || []).length;
       const nextKey = `${room}-plan-extra-${nextIndex}`;
-      setExtraPlanImages((prev) => ({ ...prev, [room]: [...(prev[room] || []), data] }));
+      const url = await uploadToBlob(data, `${nextKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      setExtraPlanImages((prev) => ({ ...prev, [room]: [...(prev[room] || []), url] }));
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Plan ajouté ${label}`,
         section: "plan",
       });
@@ -847,7 +877,7 @@ function PlanPreview({
               type="button"
               title="Supprimer l'image"
               aria-label="Supprimer l'image"
-              className="grid h-9 w-9 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+              className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
               onClick={() => {
                 setDeletedImages((prev) => ({ ...prev, [currentKey]: true }));
                 setPlanUploads((prev) => removeObjectKey(prev, currentKey));
@@ -912,9 +942,10 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
     if (!file) return;
     const data = await readFileAsDataUrl(file);
     if (typeof data === "string") {
-      setUploadedImages((prev) => ({ ...prev, [cardKey]: data }));
+      const url = await uploadToBlob(data, `${cardKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      setUploadedImages((prev) => ({ ...prev, [cardKey]: url }));
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Inspiration ${label}, pièce ${label}`,
         section: "inspiration",
       });
@@ -928,9 +959,10 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
     if (typeof data === "string") {
       const nextIndex = (aiInspirations[room] || []).length;
       const nextKey = `${room}-ai-${nextIndex}`;
-      addAiInspiration(room, data);
+      const url = await uploadToBlob(data, `${nextKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      addAiInspiration(room, url);
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Inspiration ajoutée ${label}`,
         section: "inspiration",
       });
@@ -945,7 +977,10 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="type-h3">Inspirations</h3>
+        <div>
+          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Moodboard</p>
+          <h3 className="type-h3">Inspirations</h3>
+        </div>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
@@ -1007,7 +1042,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
                       type="button"
                       title="Supprimer l'image"
                       aria-label="Supprimer l'image"
-                      className="grid h-9 w-9 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+                      className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
                       onClick={() => {
                         setDeletedImages((prev) => ({ ...prev, [cardKey]: true }));
                         setUploadedImages((prev) => removeObjectKey(prev, cardKey));
@@ -1077,9 +1112,10 @@ function MaterialsSection({
     if (!file) return;
     const data = await readFileAsDataUrl(file);
     if (typeof data === "string") {
-      setMaterialUploads((prev) => ({ ...prev, [cardKey]: data }));
+      const url = await uploadToBlob(data, `${cardKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      setMaterialUploads((prev) => ({ ...prev, [cardKey]: url }));
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Matériau ${room}, ${cardKey}`,
         section: "matériau",
       });
@@ -1093,9 +1129,10 @@ function MaterialsSection({
     if (typeof data === "string") {
       const nextIndex = (extraMaterialImages[room] || []).length;
       const nextKey = `${room}-material-extra-${nextIndex}`;
-      setExtraMaterialImages((prev) => ({ ...prev, [room]: [...(prev[room] || []), data] }));
+      const url = await uploadToBlob(data, `${nextKey}-${Date.now()}.${extFromDataUrl(data)}`);
+      setExtraMaterialImages((prev) => ({ ...prev, [room]: [...(prev[room] || []), url] }));
       const analysis = await analyzeImageForContext({
-        image: data,
+        image: url,
         context: `Matériau ajouté ${room}`,
         section: "matériau",
       });
@@ -1110,7 +1147,10 @@ function MaterialsSection({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="type-h3">Matériaux</h3>
+        <div>
+          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Finitions & matières</p>
+          <h3 className="type-h3">Matériaux</h3>
+        </div>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 text-xs">
@@ -1170,7 +1210,7 @@ function MaterialsSection({
                     type="button"
                     title="Supprimer l'image"
                     aria-label="Supprimer l'image"
-                    className="grid h-9 w-9 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+                    className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-bold text-slate-950 shadow-sm backdrop-blur hover:bg-white"
                     onClick={() => {
                       setDeletedImages((prev) => ({ ...prev, [cardKey]: true }));
                       setMaterialUploads((prev) => removeObjectKey(prev, cardKey));
@@ -1601,7 +1641,7 @@ export default function App() {
   }, [deletedImages]);
 
   return (
-    <div className="min-h-screen bg-white text-slate-800">
+    <div className="min-h-screen bg-creme text-slate-800">
       <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-3 py-2 backdrop-blur sm:hidden">
         <div className="flex items-center gap-2">
           <button
@@ -1621,7 +1661,7 @@ export default function App() {
             onClick={saveProject}
             className="rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm"
           >
-            Save
+            Enregistrer
           </button>
         </div>
         {mobileMenuOpen ? (
@@ -1632,6 +1672,7 @@ export default function App() {
                 onClick={() => {
                   setRoom(key);
                   setMobileMenuOpen(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className={`rounded-md border px-3 py-2 text-left text-sm ${
                   room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
@@ -1665,7 +1706,7 @@ export default function App() {
                 onClick={saveProject}
                 className="w-full rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 sm:w-auto"
               >
-                Save
+                Enregistrer
               </button>
               {lastSavedAt ? <span className="text-xs text-slate-500">Sauvé: {new Date(lastSavedAt).toLocaleString("fr-FR")}</span> : null}
             </div>
@@ -1677,7 +1718,7 @@ export default function App() {
             {activeRooms.map((key) => (
               <button
                 key={key}
-                onClick={() => setRoom(key)}
+                onClick={() => { setRoom(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
                   room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
                 }`}
@@ -1699,22 +1740,8 @@ export default function App() {
 
         <section className="grid gap-6 xl:grid-cols-2">
           <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
-            <h2 className="type-h2">Module Couleur Global</h2>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Chaleur globale: {warmth}</label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={warmth}
-                onChange={(e) => setWarmth(Number(e.target.value))}
-                className="w-full"
-              />
-              <p className="mt-2 text-sm text-slate-600">
-                Ajuste uniquement l'aperçu du nuancier: plus frais vers les bleus, plus chaud vers chêne clair et jaune beurre.
-              </p>
-            </div>
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
+            <h2 className="type-h2">Palette de l'appartement</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               <Swatch title="Crème chaud" subtitle="Base" hex={baseColors.creme.hex} />
               <Swatch title="Bleu clair grisé" subtitle="Pilier" hex={baseColors.bleu.hex} />
@@ -1742,6 +1769,7 @@ export default function App() {
           </div>
 
           <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Pièce active</p>
             <div className="flex items-start justify-between gap-3">
               <h2 className="type-h2">{preset.label}</h2>
               {activeRooms.length > 1 ? (
@@ -1750,7 +1778,7 @@ export default function App() {
                   onClick={deleteRoom}
                   title="Supprimer cette pièce"
                   aria-label="Supprimer cette pièce"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-red-200 bg-white text-base font-bold text-red-600 shadow-sm hover:bg-red-50"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-red-200 bg-white text-base font-bold text-red-600 shadow-sm hover:bg-red-50"
                 >
                   ×
                 </button>
@@ -1844,8 +1872,25 @@ export default function App() {
             setDeletedImages={setDeletedImages}
           />
           <div className="rounded-xl border border-black/10 bg-white p-4">
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Aperçu visuel</p>
             <h2 className="type-h2">Nuancier Recommandé</h2>
-            <p className="mb-3 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active. La chaleur globale module seulement cet aperçu.</p>
+            <p className="mt-1 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active.</p>
+            <div className="rounded-lg border border-black/10 bg-[#f9f6ef] p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-sm font-medium">Aperçu chaleur : {warmth}</label>
+                <span className="rounded border border-black/10 bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Aperçu seul</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={warmth}
+                onChange={(e) => setWarmth(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="mt-1.5 text-xs text-slate-500">Plus frais vers les bleus · plus chaud vers chêne clair et beurre.</p>
+            </div>
             <div className="overflow-hidden rounded-xl border border-black/10">
               <div className="h-6" style={{ backgroundColor: baseColors.creme.hex }} />
               <div className="grid min-h-[220px] grid-cols-[1.2fr_0.8fr]">
