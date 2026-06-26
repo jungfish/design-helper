@@ -32,6 +32,8 @@ const CUSTOM_ROOMS_STORAGE_KEY = "palette_custom_rooms_v1";
 const HIDDEN_ROOMS_STORAGE_KEY = "palette_hidden_rooms_v1";
 const PROJECT_STATE_STORAGE_KEY = "palette_project_state_v1";
 const LAST_SAVE_STORAGE_KEY = "palette_last_save_v1";
+const ROOM_LISTS_STORAGE_KEY = "palette_room_lists_v1";
+const ROOM_ORDER_STORAGE_KEY = "palette_room_order_v1";
 const IMAGE_DB_NAME = "palette-appartement-images";
 const IMAGE_DB_STORE = "records";
 
@@ -750,6 +752,43 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
   );
 }
 
+function Lightbox({ src, onClose }) {
+  useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex cursor-zoom-out items-center justify-center bg-black/90 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/20 text-xl text-white hover:bg-white/30"
+        aria-label="Fermer"
+      >
+        ×
+      </button>
+      <img
+        src={src}
+        alt="Vue agrandie"
+        className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>,
+    document.body,
+  );
+}
+
 function PlanPreview({
   room,
   label,
@@ -765,6 +804,7 @@ function PlanPreview({
   setImageAnalysis,
   deletedImages,
   setDeletedImages,
+  onImageClick,
 }) {
   const items = [
     ...(roomPlanImages[room] || []).map((src, i) => ({ src, key: `${room}-plan-${i}` })),
@@ -819,7 +859,10 @@ function PlanPreview({
   return (
     <div className="overflow-visible rounded-xl border border-black/10 bg-white">
       <div className="flex flex-col gap-3 border-b border-black/10 p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-medium">Plan simplifié - {label}</div>
+        <div>
+          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Plan d'archi</p>
+          <h3 className="type-h3">Plans & Photos</h3>
+        </div>
         <div className="flex items-center gap-2">
           {pageCount > 1 ? (
             <div className="flex items-center gap-2 overflow-x-auto text-xs">
@@ -847,14 +890,21 @@ function PlanPreview({
           <AddImageButton onFile={handleAddImage} />
         </div>
       </div>
-      <div className="group relative h-64 bg-[#efe7de] sm:h-80 lg:h-[360px]">
+      <div
+        className="group relative h-64 bg-[#efe7de] sm:h-80 lg:h-[360px]"
+        style={{ cursor: currentSrc && !isMissing ? "zoom-in" : "default" }}
+        onClick={() => { if (currentSrc && !isMissing && onImageClick) onImageClick(currentSrc); }}
+      >
         {currentSrc ? (
           <RepoImage src={currentSrc} alt={`Plan ${label}`} onMissingChange={(missing) => setMissingCards((prev) => ({ ...prev, [currentKey]: missing }))} />
         ) : (
           <div className="grid h-full place-items-center bg-[#f8f5ef] p-4 text-center text-sm text-slate-500">Ajoute une image de plan.</div>
         )}
         {currentSrc ? (
-          <div className="absolute inset-x-3 top-3 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div
+            className="absolute inset-x-3 top-3 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
             <AiImageEditor
               imageSrc={currentSrc}
               imageKind="plan"
@@ -920,7 +970,7 @@ function PlanPreview({
   );
 }
 
-function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirationLinks, setInspirationLinks, aiContext, aiInspirations, addAiInspiration, imageAnalysis, setImageAnalysis, deletedImages, setDeletedImages }) {
+function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirationLinks, setInspirationLinks, aiContext, aiInspirations, addAiInspiration, imageAnalysis, setImageAnalysis, deletedImages, setDeletedImages, onImageClick }) {
   const items = [
     ...(roomInspirationImages[room] || []).map((src, i) => ({ src, cardKey: `${room}-${i}`, index: i })),
     ...(aiInspirations[room] || []).map((src, i) => ({ src, cardKey: `${room}-ai-${i}`, index: i })),
@@ -1017,9 +1067,13 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
 
             return (
               <div key={cardKey} className="overflow-visible rounded-xl border border-black/10 bg-white">
-                <div className="group relative h-56 sm:h-48">
+                <div
+                  className="group relative h-56 sm:h-48"
+                  style={{ cursor: "zoom-in" }}
+                  onClick={() => { if (onImageClick) onImageClick(imageSrc); }}
+                >
                   <RepoImage src={imageSrc} alt={`${label} inspiration ${i + 1}`} onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
-                  <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
                     <AiImageEditor
                       imageSrc={imageSrc}
                       imageKind="inspiration"
@@ -1085,6 +1139,7 @@ function MaterialsSection({
   setImageAnalysis,
   deletedImages,
   setDeletedImages,
+  onImageClick,
 }) {
   const items = [
     ...(materialsByRoom[room] || []).map((item, i) => ({ item, cardKey: `${room}-material-${i}`, index: i })),
@@ -1185,9 +1240,13 @@ function MaterialsSection({
           const isMissing = !!missingCards[cardKey];
           return (
             <div key={cardKey} className="overflow-visible rounded-xl border border-black/10 bg-white">
-              <div className="group relative h-52 sm:h-48">
+              <div
+                className="group relative h-52 sm:h-48"
+                style={{ cursor: "zoom-in" }}
+                onClick={() => { if (onImageClick) onImageClick(imageSrc); }}
+              >
                 <RepoImage src={imageSrc} alt={`${item.label} ${item.value}`} onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
-                <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
                   <AiImageEditor
                     imageSrc={imageSrc}
                     imageKind="matériau"
@@ -1235,6 +1294,108 @@ function MaterialsSection({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function ListeSection({ room, label, roomLists, setRoomLists }) {
+  const [shopInput, setShopInput] = useState("");
+  const [todoInput, setTodoInput] = useState("");
+
+  const list = roomLists[room] || {};
+  const shopping = list.shopping || [];
+  const todos = list.todos || [];
+
+  const addItem = (listKey, text, setter) => {
+    if (!text.trim()) return;
+    const id = `${listKey}-${Date.now()}`;
+    setRoomLists((prev) => ({
+      ...prev,
+      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: text.trim(), done: false }] },
+    }));
+    setter("");
+  };
+
+  const toggleItem = (listKey, id) => {
+    setRoomLists((prev) => ({
+      ...prev,
+      [room]: { ...(prev[room] || {}), [listKey]: ((prev[room] || {})[listKey] || []).map((item) => (item.id === id ? { ...item, done: !item.done } : item)) },
+    }));
+  };
+
+  const removeItem = (listKey, id) => {
+    setRoomLists((prev) => ({
+      ...prev,
+      [room]: { ...(prev[room] || {}), [listKey]: ((prev[room] || {})[listKey] || []).filter((item) => item.id !== id) },
+    }));
+  };
+
+  const renderList = (listKey, items, input, setInput, title, eyebrow, placeholder) => {
+    const pending = items.filter((i) => !i.done);
+    const done = items.filter((i) => i.done);
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{eyebrow}</p>
+          <h3 className="type-h3">{title}</h3>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addItem(listKey, input, setInput); }}
+            placeholder={placeholder}
+            className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => addItem(listKey, input, setInput)}
+            className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            Ajouter
+          </button>
+        </div>
+        {items.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">Aucun élément pour l'instant.</div>
+        ) : (
+          <ul className="space-y-1.5">
+            {[...pending, ...done].map((item) => (
+              <li
+                key={item.id}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleItem(listKey, item.id)}
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}
+                >
+                  {item.done ? "✓" : ""}
+                </button>
+                <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{item.text}</span>
+                <button
+                  type="button"
+                  onClick={() => removeItem(listKey, item.id)}
+                  className="shrink-0 px-1 text-slate-300 hover:text-slate-600"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <div className="rounded-xl border border-black/10 bg-white p-4">
+        {renderList("shopping", shopping, shopInput, setShopInput, "Liste des courses", label, "Ajouter un article…")}
+      </div>
+      <div className="rounded-xl border border-black/10 bg-white p-4">
+        {renderList("todos", todos, todoInput, setTodoInput, "À faire", "Tâches", "Ajouter une tâche…")}
       </div>
     </div>
   );
@@ -1373,6 +1534,26 @@ export default function App() {
       return {};
     }
   });
+  const [viewMode, setViewMode] = useState("room");
+  const [roomMode, setRoomMode] = useState("couleurs");
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [roomLists, setRoomLists] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ROOM_LISTS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [roomOrder, setRoomOrder] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ROOM_ORDER_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [draggingRoom, setDraggingRoom] = useState(null);
 
   const customRoomPresets = Object.fromEntries(
     customRooms.map((customRoom) => [
@@ -1390,7 +1571,25 @@ export default function App() {
   const activeRooms = [...rooms.filter((key) => !hiddenRooms.includes(key)), ...customRooms.map((customRoom) => customRoom.key)].filter(
     (key) => allRoomPresets[key],
   );
-  const preset = allRoomPresets[room] || allRoomPresets[activeRooms[0]] || roomPresets.salon;
+  const orderedActiveRooms = roomOrder
+    ? [
+        ...roomOrder.filter((key) => activeRooms.includes(key)),
+        ...activeRooms.filter((key) => !roomOrder.includes(key)),
+      ]
+    : activeRooms;
+
+  const handleRoomDrop = (dropKey) => {
+    if (!draggingRoom || draggingRoom === dropKey) return;
+    const newOrder = [...orderedActiveRooms];
+    const fromIndex = newOrder.indexOf(draggingRoom);
+    const toIndex = newOrder.indexOf(dropKey);
+    newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, draggingRoom);
+    setRoomOrder(newOrder);
+    setDraggingRoom(null);
+  };
+
+  const preset = allRoomPresets[room] || allRoomPresets[orderedActiveRooms[0]] || roomPresets.salon;
   const activeNuance = roomNuances[room] || INITIAL_ROOM_NUANCES[room] || { dominant: "moyen", secondary: "moyen", accent: globalAccent };
   const dominantHex = getShade(preset.dominant, activeNuance.dominant);
   const secondaryHex = getShade(preset.secondary, activeNuance.secondary);
@@ -1444,11 +1643,11 @@ export default function App() {
   };
 
   const deleteRoom = () => {
-    if (activeRooms.length <= 1) return;
+    if (orderedActiveRooms.length <= 1) return;
     const roomLabel = allRoomPresets[room]?.label || "cette pièce";
     if (!window.confirm(`Supprimer ${roomLabel} de l'app ?`)) return;
 
-    const nextRoom = activeRooms.find((key) => key !== room) || "salon";
+    const nextRoom = orderedActiveRooms.find((key) => key !== room) || "salon";
     if (rooms.includes(room)) {
       setHiddenRooms((prev) => [...new Set([...prev, room])]);
     } else {
@@ -1468,6 +1667,7 @@ export default function App() {
     setDeletedImages((prev) => removeRoomData(prev, room));
     setRoomNuances((prev) => removeRoomData(prev, room));
     setRoomNotes((prev) => removeRoomData(prev, room));
+    setRoomLists((prev) => removeRoomData(prev, room));
     setRoom(nextRoom);
     setMobileMenuOpen(false);
   };
@@ -1502,6 +1702,8 @@ export default function App() {
       deletedImages,
       roomNuances,
       roomNotes,
+      roomLists,
+      roomOrder,
     };
 
     await storeLargeValue(PROJECT_STATE_STORAGE_KEY, projectState);
@@ -1564,6 +1766,8 @@ export default function App() {
         if (saved.deletedImages) setDeletedImages(saved.deletedImages);
         if (saved.roomNuances) setRoomNuances(saved.roomNuances);
         if (saved.roomNotes) setRoomNotes(saved.roomNotes);
+        if (saved.roomLists) setRoomLists(saved.roomLists);
+        if (saved.roomOrder) setRoomOrder(saved.roomOrder);
         if (saved.savedAt) setLastSavedAt(saved.savedAt);
       })
       .catch(() => {});
@@ -1574,10 +1778,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeRooms.length && !activeRooms.includes(room)) {
-      setRoom(activeRooms[0]);
+    if (orderedActiveRooms.length && !orderedActiveRooms.includes(room)) {
+      setRoom(orderedActiveRooms[0]);
     }
-  }, [activeRooms, room]);
+  }, [orderedActiveRooms, room]);
 
   useEffect(() => {
     safelyStore(CUSTOM_ROOMS_STORAGE_KEY, customRooms);
@@ -1642,6 +1846,34 @@ export default function App() {
     safelyStore(DELETED_IMAGES_STORAGE_KEY, deletedImages);
   }, [deletedImages]);
 
+  useEffect(() => {
+    safelyStore(ROOM_LISTS_STORAGE_KEY, roomLists);
+  }, [roomLists]);
+
+  useEffect(() => {
+    if (roomOrder) safelyStore(ROOM_ORDER_STORAGE_KEY, roomOrder);
+  }, [roomOrder]);
+
+  useEffect(() => {
+    setRoomMode("couleurs");
+  }, [room]);
+
+  const getRoomColors = (roomKey) => {
+    const p = allRoomPresets[roomKey];
+    if (!p) return null;
+    const nuance = roomNuances[roomKey] || INITIAL_ROOM_NUANCES[roomKey] || { dominant: "moyen", secondary: "moyen", accent: globalAccent };
+    const dHex = getShade(p.dominant, nuance.dominant);
+    const sHex = getShade(p.secondary, nuance.secondary);
+    const aHex = nuance.accent === "bois" ? baseColors.bois.hex : accents[nuance.accent]?.hex || accents[globalAccent].hex;
+    const aName = nuance.accent === "bois" ? "Chêne clair" : accents[nuance.accent]?.name || accents[globalAccent].name;
+    return { dominant: { name: baseColors[p.dominant].name, hex: dHex }, secondary: { name: baseColors[p.secondary].name, hex: sHex }, accent: { name: aName, hex: aHex } };
+  };
+
+  const roomPendingCount = (key) => {
+    const list = roomLists[key] || {};
+    return [...(list.shopping || []), ...(list.todos || [])].filter((item) => !item.done).length;
+  };
+
   return (
     <div className="min-h-screen bg-creme text-slate-800">
       <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-3 py-2 backdrop-blur sm:hidden">
@@ -1668,21 +1900,44 @@ export default function App() {
         </div>
         {mobileMenuOpen ? (
           <div className="mt-2 grid max-h-[60vh] gap-2 overflow-y-auto rounded-lg border border-black/10 bg-white p-2 shadow-lg">
-            {activeRooms.map((key) => (
-              <button
-                key={key}
-                onClick={() => {
-                  setRoom(key);
-                  setMobileMenuOpen(false);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`rounded-md border px-3 py-2 text-left text-sm ${
-                  room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
-                }`}
-              >
-                {allRoomPresets[key].label}
-              </button>
-            ))}
+            {orderedActiveRooms.map((key) => {
+              const pending = roomPendingCount(key);
+              return (
+                <button
+                  key={key}
+                  draggable
+                  onDragStart={() => setDraggingRoom(key)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleRoomDrop(key)}
+                  onDragEnd={() => setDraggingRoom(null)}
+                  onClick={() => {
+                    setRoom(key);
+                    setViewMode("room");
+                    setMobileMenuOpen(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className={`flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-opacity ${
+                    viewMode === "room" && room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
+                  } ${draggingRoom === key ? "opacity-40" : ""}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-slate-300 select-none">⠿</span>
+                    {allRoomPresets[key].label}
+                  </span>
+                  {pending > 0 ? (
+                    <span className="ml-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{pending}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+            <div className="my-1 h-px bg-black/10" />
+            <button
+              type="button"
+              onClick={() => { setViewMode("palette"); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              className={`rounded-md border px-3 py-2 text-left text-sm ${viewMode === "palette" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"}`}
+            >
+              Palette globale
+            </button>
             <button
               type="button"
               onClick={addRoom}
@@ -1717,17 +1972,39 @@ export default function App() {
 
         <section className="sticky top-2 z-30 hidden rounded-xl border border-black/10 bg-white/95 p-3 backdrop-blur sm:block md:top-4 md:p-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {activeRooms.map((key) => (
-              <button
-                key={key}
-                onClick={() => { setRoom(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
-                  room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
-                }`}
-              >
-                {allRoomPresets[key].label}
-              </button>
-            ))}
+            {orderedActiveRooms.map((key) => {
+              const pending = roomPendingCount(key);
+              return (
+                <button
+                  key={key}
+                  draggable
+                  onDragStart={() => setDraggingRoom(key)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleRoomDrop(key)}
+                  onDragEnd={() => setDraggingRoom(null)}
+                  onClick={() => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  title="Glisser pour réorganiser"
+                  className={`relative shrink-0 cursor-grab whitespace-nowrap rounded-lg border px-3 py-2 text-sm transition-opacity active:cursor-grabbing ${
+                    viewMode === "room" && room === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
+                  } ${draggingRoom === key ? "opacity-40" : ""}`}
+                >
+                  {allRoomPresets[key].label}
+                  {pending > 0 ? (
+                    <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{pending}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+            <div className="mx-1 h-6 w-px shrink-0 bg-black/10" />
+            <button
+              type="button"
+              onClick={() => { setViewMode("palette"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
+                viewMode === "palette" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
+              }`}
+            >
+              Palette
+            </button>
             <button
               type="button"
               onClick={addRoom}
@@ -1740,224 +2017,294 @@ export default function App() {
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-2">
-          <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
-            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
-            <h2 className="type-h2">Palette de l'appartement</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Swatch title="Crème chaud" subtitle="Base" hex={baseColors.creme.hex} />
-              <Swatch title="Bleu clair grisé" subtitle="Pilier" hex={baseColors.bleu.hex} />
-              <Swatch title="Vert sauge" subtitle="Pilier" hex={baseColors.vert.hex} />
-              <Swatch title="Chêne clair" subtitle="Fil conducteur" hex={baseColors.bois.hex} />
-            </div>
+        {viewMode !== "palette" ? (
+          <div className="flex gap-1 rounded-xl border border-black/10 bg-white p-1.5">
+            {[
+              { key: "couleurs", label: "Couleurs" },
+              { key: "inspirations", label: "Inspirations" },
+              { key: "liste", label: "Liste" },
+            ].map(({ key, label }) => {
+              const pending = key === "liste" ? roomPendingCount(room) : 0;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setRoomMode(key)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    roomMode === key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {label}
+                  {pending > 0 ? (
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{pending}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
-            <div>
-              <div className="mb-2 text-sm font-medium">Accents autorisés</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {Object.entries(accents).map(([key, value]) => (
+        {viewMode === "palette" ? (
+          <>
+            <div className="rounded-xl border border-black/10 bg-white p-4">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
+              <h2 className="type-h2">Palette de l'appartement</h2>
+              <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs choisies.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {orderedActiveRooms.map((key) => {
+                const p = allRoomPresets[key];
+                const colors = getRoomColors(key);
+                if (!colors || !p) return null;
+                const pending = roomPendingCount(key);
+                return (
                   <button
                     key={key}
-                    onClick={() => setGlobalAccent(key)}
-                    className={`flex items-center gap-2 rounded-lg border p-2 text-left ${
-                      globalAccent === key ? "border-slate-900" : "border-black/15"
-                    }`}
+                    type="button"
+                    onClick={() => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    className="group rounded-xl border border-black/10 bg-white p-4 text-left transition-all hover:border-slate-400/40 hover:shadow-md"
                   >
-                    <span className="inline-block h-6 w-6 rounded-md border border-black/10" style={{ backgroundColor: value.hex }} />
-                    <span className="text-sm">{value.name}</span>
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900">{p.label}</div>
+                        {pending > 0 ? (
+                          <div className="mt-0.5 text-xs text-amber-700">{pending} élément{pending > 1 ? "s" : ""} en attente</div>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">→</span>
+                    </div>
+                    <div className="mb-3 flex gap-2">
+                      {[
+                        { ...colors.dominant, sublabel: "Dom." },
+                        { ...colors.secondary, sublabel: "Sec." },
+                        { ...colors.accent, sublabel: "Acc." },
+                      ].map(({ hex, sublabel }) => (
+                        <div key={sublabel} className="min-w-0 flex-1">
+                          <div className="mb-1 h-7 rounded border border-black/10" style={{ backgroundColor: hex }} />
+                          <div className="truncate text-[10px] text-slate-400">{sublabel}</div>
+                          <div className="truncate font-mono text-[10px] text-slate-600">{hex}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="line-clamp-2 text-xs leading-relaxed text-slate-500">{p.line}</p>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
-            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Pièce active</p>
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="type-h2">{preset.label}</h2>
-              {activeRooms.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={deleteRoom}
-                  title="Supprimer cette pièce"
-                  aria-label="Supprimer cette pièce"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-red-200 bg-white text-base font-bold text-red-600 shadow-sm hover:bg-red-50"
-                >
-                  ×
-                </button>
-              ) : null}
-            </div>
-            <p className="text-sm text-slate-700">{preset.line}</p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <label className="text-sm">
-                Nuance dominante
-                <select
-                  className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
-                  value={activeNuance.dominant}
-                  onChange={(e) => updateRoomNuance("dominant", e.target.value)}
-                >
-                  <option value="clair">Clair</option>
-                  <option value="moyen">Moyen</option>
-                  <option value="soutenu">Soutenu</option>
-                  <option value="fonce">Foncé</option>
-                </select>
-              </label>
-              <label className="text-sm">
-                Nuance secondaire
-                <select
-                  className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
-                  value={activeNuance.secondary}
-                  onChange={(e) => updateRoomNuance("secondary", e.target.value)}
-                >
-                  <option value="clair">Clair</option>
-                  <option value="moyen">Moyen</option>
-                  <option value="soutenu">Soutenu</option>
-                  <option value="fonce">Foncé</option>
-                </select>
-              </label>
-              <label className="text-sm">
-                Accent pièce
-                <select
-                  className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
-                  value={activeNuance.accent}
-                  onChange={(e) => updateRoomNuance("accent", e.target.value)}
-                >
-                  <option value="bois">Chêne clair</option>
-                  {Object.entries(accents).map(([key, value]) => (
-                    <option key={key} value={key}>
-                      {value.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Swatch title={baseColors[preset.dominant].name} subtitle="Dominante" hex={dominantHex} />
-              <Swatch title={baseColors[preset.secondary].name} subtitle="Secondaire" hex={secondaryHex} />
-              <Swatch
-                title={accentName}
-                subtitle="Accent"
-                hex={accentHex}
-              />
-            </div>
-            <label className="block text-sm">
-              Note de la pièce
-              <textarea
-                className="mt-1 min-h-24 w-full rounded-md border border-black/15 bg-white p-2"
-                placeholder="Ajouter une note sur cette pièce..."
-                value={roomNotes[room] || ""}
-                onChange={(e) =>
-                  setRoomNotes((prev) => ({
-                    ...prev,
-                    [room]: e.target.value,
-                  }))
-                }
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-2">
-          <PlanPreview
-            room={room}
-            label={preset.label}
-            planUploads={planUploads}
-            setPlanUploads={setPlanUploads}
-            planLinks={planLinks}
-            setPlanLinks={setPlanLinks}
-            extraPlanImages={extraPlanImages}
-            setExtraPlanImages={setExtraPlanImages}
-            aiContext={aiContext}
-            addAiInspiration={addAiInspiration}
-            imageAnalysis={imageAnalysis}
-            setImageAnalysis={setImageAnalysis}
-            deletedImages={deletedImages}
-            setDeletedImages={setDeletedImages}
-          />
-          <div className="rounded-xl border border-black/10 bg-white p-4">
-            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Aperçu visuel</p>
-            <h2 className="type-h2">Nuancier Recommandé</h2>
-            <p className="mt-1 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active.</p>
-            <div className="rounded-lg border border-black/10 bg-[#f9f6ef] p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-sm font-medium">Aperçu chaleur : {warmth}</label>
-                <span className="rounded border border-black/10 bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Aperçu seul</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={warmth}
-                onChange={(e) => setWarmth(Number(e.target.value))}
-                className="w-full"
-              />
-              <p className="mt-1.5 text-xs text-slate-500">Plus frais vers les bleus · plus chaud vers chêne clair et beurre.</p>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-black/10">
-              <div className="h-6" style={{ backgroundColor: baseColors.creme.hex }} />
-              <div className="grid min-h-[220px] grid-cols-[1.2fr_0.8fr]">
-                <div className="relative" style={{ backgroundColor: previewSecondaryHex }}>
-                  <div className="absolute inset-x-0 top-0 h-1/2" style={{ backgroundColor: baseColors.creme.hex }} />
-                  <div className="absolute bottom-3 left-3 h-24 w-28 rounded-xl" style={{ backgroundColor: dominantHex }} />
+          </>
+        ) : roomMode === "couleurs" ? (
+          <>
+            <section className="grid gap-6 xl:grid-cols-2">
+              <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+                <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
+                <h2 className="type-h2">Palette de l'appartement</h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Swatch title="Crème chaud" subtitle="Base" hex={baseColors.creme.hex} />
+                  <Swatch title="Bleu clair grisé" subtitle="Pilier" hex={baseColors.bleu.hex} />
+                  <Swatch title="Vert sauge" subtitle="Pilier" hex={baseColors.vert.hex} />
+                  <Swatch title="Chêne clair" subtitle="Fil conducteur" hex={baseColors.bois.hex} />
                 </div>
-                <div className="p-4" style={{ backgroundColor: dominantHex, color: textColor(dominantHex) }}>
-                  <div className="grid grid-cols-3 gap-2">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <div
-                        key={`square-${i}`}
-                        className="aspect-square rounded-md"
-                        style={{ backgroundColor: i % 3 === 0 ? previewAccentHex : i % 2 ? previewSecondaryHex : baseColors.creme.hex }}
-                      />
+                <div>
+                  <div className="mb-2 text-sm font-medium">Accents autorisés</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {Object.entries(accents).map(([key, value]) => (
+                      <button
+                        key={key}
+                        onClick={() => setGlobalAccent(key)}
+                        className={`flex items-center gap-2 rounded-lg border p-2 text-left ${
+                          globalAccent === key ? "border-slate-900" : "border-black/15"
+                        }`}
+                      >
+                        <span className="inline-block h-6 w-6 rounded-md border border-black/10" style={{ backgroundColor: value.hex }} />
+                        <span className="text-sm">{value.name}</span>
+                      </button>
                     ))}
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="mt-3 space-y-2">
-              {preset.notes.map((note) => (
-                <p key={note} className="rounded-lg bg-[#f9f6ef] p-3 text-sm">
-                  {note}
-                </p>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className="rounded-xl border border-black/10 bg-white p-4">
-          <Inspirations
+              <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+                <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Pièce active</p>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="type-h2">{preset.label}</h2>
+                  {orderedActiveRooms.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={deleteRoom}
+                      title="Supprimer cette pièce"
+                      aria-label="Supprimer cette pièce"
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-red-200 bg-white text-base font-bold text-red-600 shadow-sm hover:bg-red-50"
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-sm text-slate-700">{preset.line}</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <label className="text-sm">
+                    Nuance dominante
+                    <select
+                      className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
+                      value={activeNuance.dominant}
+                      onChange={(e) => updateRoomNuance("dominant", e.target.value)}
+                    >
+                      <option value="clair">Clair</option>
+                      <option value="moyen">Moyen</option>
+                      <option value="soutenu">Soutenu</option>
+                      <option value="fonce">Foncé</option>
+                    </select>
+                  </label>
+                  <label className="text-sm">
+                    Nuance secondaire
+                    <select
+                      className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
+                      value={activeNuance.secondary}
+                      onChange={(e) => updateRoomNuance("secondary", e.target.value)}
+                    >
+                      <option value="clair">Clair</option>
+                      <option value="moyen">Moyen</option>
+                      <option value="soutenu">Soutenu</option>
+                      <option value="fonce">Foncé</option>
+                    </select>
+                  </label>
+                  <label className="text-sm">
+                    Accent pièce
+                    <select
+                      className="mt-1 w-full rounded-md border border-black/15 bg-white p-2"
+                      value={activeNuance.accent}
+                      onChange={(e) => updateRoomNuance("accent", e.target.value)}
+                    >
+                      <option value="bois">Chêne clair</option>
+                      {Object.entries(accents).map(([key, value]) => (
+                        <option key={key} value={key}>
+                          {value.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Swatch title={baseColors[preset.dominant].name} subtitle="Dominante" hex={dominantHex} />
+                  <Swatch title={baseColors[preset.secondary].name} subtitle="Secondaire" hex={secondaryHex} />
+                  <Swatch title={accentName} subtitle="Accent" hex={accentHex} />
+                </div>
+                <label className="block text-sm">
+                  Note de la pièce
+                  <textarea
+                    className="mt-1 min-h-24 w-full rounded-md border border-black/15 bg-white p-2"
+                    placeholder="Ajouter une note sur cette pièce..."
+                    value={roomNotes[room] || ""}
+                    onChange={(e) => setRoomNotes((prev) => ({ ...prev, [room]: e.target.value }))}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <div className="rounded-xl border border-black/10 bg-white p-4">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Aperçu visuel</p>
+              <h2 className="type-h2">Nuancier Recommandé</h2>
+              <p className="mt-1 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active.</p>
+              <div className="mt-3 rounded-lg border border-black/10 bg-[#f9f6ef] p-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium">Aperçu chaleur : {warmth}</label>
+                  <span className="rounded border border-black/10 bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Aperçu seul</span>
+                </div>
+                <input type="range" min={0} max={100} step={1} value={warmth} onChange={(e) => setWarmth(Number(e.target.value))} className="w-full" />
+                <p className="mt-1.5 text-xs text-slate-500">Plus frais vers les bleus · plus chaud vers chêne clair et beurre.</p>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-xl border border-black/10">
+                <div className="h-6" style={{ backgroundColor: baseColors.creme.hex }} />
+                <div className="grid min-h-[220px] grid-cols-[1.2fr_0.8fr]">
+                  <div className="relative" style={{ backgroundColor: previewSecondaryHex }}>
+                    <div className="absolute inset-x-0 top-0 h-1/2" style={{ backgroundColor: baseColors.creme.hex }} />
+                    <div className="absolute bottom-3 left-3 h-24 w-28 rounded-xl" style={{ backgroundColor: dominantHex }} />
+                  </div>
+                  <div className="p-4" style={{ backgroundColor: dominantHex, color: textColor(dominantHex) }}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <div
+                          key={`square-${i}`}
+                          className="aspect-square rounded-md"
+                          style={{ backgroundColor: i % 3 === 0 ? previewAccentHex : i % 2 ? previewSecondaryHex : baseColors.creme.hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {preset.notes.map((note) => (
+                  <p key={note} className="rounded-lg bg-[#f9f6ef] p-3 text-sm">{note}</p>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : roomMode === "inspirations" ? (
+          <>
+            <PlanPreview
+              room={room}
+              label={preset.label}
+              planUploads={planUploads}
+              setPlanUploads={setPlanUploads}
+              planLinks={planLinks}
+              setPlanLinks={setPlanLinks}
+              extraPlanImages={extraPlanImages}
+              setExtraPlanImages={setExtraPlanImages}
+              aiContext={aiContext}
+              addAiInspiration={addAiInspiration}
+              imageAnalysis={imageAnalysis}
+              setImageAnalysis={setImageAnalysis}
+              deletedImages={deletedImages}
+              setDeletedImages={setDeletedImages}
+              onImageClick={setLightboxSrc}
+            />
+            <section className="rounded-xl border border-black/10 bg-white p-4">
+              <Inspirations
+                room={room}
+                label={preset.label}
+                uploadedImages={uploadedImages}
+                setUploadedImages={setUploadedImages}
+                inspirationLinks={inspirationLinks}
+                setInspirationLinks={setInspirationLinks}
+                aiContext={aiContext}
+                aiInspirations={aiInspirations}
+                addAiInspiration={addAiInspiration}
+                imageAnalysis={imageAnalysis}
+                setImageAnalysis={setImageAnalysis}
+                deletedImages={deletedImages}
+                setDeletedImages={setDeletedImages}
+                onImageClick={setLightboxSrc}
+              />
+            </section>
+            <section className="rounded-xl border border-black/10 bg-white p-4">
+              <MaterialsSection
+                room={room}
+                materialUploads={materialUploads}
+                setMaterialUploads={setMaterialUploads}
+                materialLinks={materialLinks}
+                setMaterialLinks={setMaterialLinks}
+                extraMaterialImages={extraMaterialImages}
+                setExtraMaterialImages={setExtraMaterialImages}
+                aiContext={aiContext}
+                addAiInspiration={addAiInspiration}
+                imageAnalysis={imageAnalysis}
+                setImageAnalysis={setImageAnalysis}
+                deletedImages={deletedImages}
+                setDeletedImages={setDeletedImages}
+                onImageClick={setLightboxSrc}
+              />
+            </section>
+          </>
+        ) : (
+          <ListeSection
             room={room}
             label={preset.label}
-            uploadedImages={uploadedImages}
-            setUploadedImages={setUploadedImages}
-            inspirationLinks={inspirationLinks}
-            setInspirationLinks={setInspirationLinks}
-            aiContext={aiContext}
-            aiInspirations={aiInspirations}
-            addAiInspiration={addAiInspiration}
-            imageAnalysis={imageAnalysis}
-            setImageAnalysis={setImageAnalysis}
-            deletedImages={deletedImages}
-            setDeletedImages={setDeletedImages}
+            roomLists={roomLists}
+            setRoomLists={setRoomLists}
           />
-        </section>
+        )}
 
-        <section className="rounded-xl border border-black/10 bg-white p-4">
-          <MaterialsSection
-            room={room}
-            materialUploads={materialUploads}
-            setMaterialUploads={setMaterialUploads}
-            materialLinks={materialLinks}
-            setMaterialLinks={setMaterialLinks}
-            extraMaterialImages={extraMaterialImages}
-            setExtraMaterialImages={setExtraMaterialImages}
-            aiContext={aiContext}
-            addAiInspiration={addAiInspiration}
-            imageAnalysis={imageAnalysis}
-            setImageAnalysis={setImageAnalysis}
-            deletedImages={deletedImages}
-            setDeletedImages={setDeletedImages}
-          />
-        </section>
+        {lightboxSrc ? <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} /> : null}
       </main>
     </div>
   );
