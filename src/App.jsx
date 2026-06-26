@@ -34,6 +34,7 @@ const PROJECT_STATE_STORAGE_KEY = "palette_project_state_v1";
 const LAST_SAVE_STORAGE_KEY = "palette_last_save_v1";
 const ROOM_LISTS_STORAGE_KEY = "palette_room_lists_v1";
 const ROOM_ORDER_STORAGE_KEY = "palette_room_order_v1";
+const PROJECT_ID_STORAGE_KEY = "palette_project_id_v1";
 const IMAGE_DB_NAME = "palette-appartement-images";
 const IMAGE_DB_STORE = "records";
 
@@ -1788,6 +1789,10 @@ export default function App() {
   const [globalAccent, setGlobalAccent] = useState("butter");
   const [warmth, setWarmth] = useState(60);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [projectId, setProjectId] = useState(() => localStorage.getItem(PROJECT_ID_STORAGE_KEY) || null);
+  const [isSavingToServer, setIsSavingToServer] = useState(false);
+  const [loadingFromUrl, setLoadingFromUrl] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const [customRooms, setCustomRooms] = useState(() => {
     try {
       const raw = localStorage.getItem(CUSTOM_ROOMS_STORAGE_KEY);
@@ -2106,7 +2111,67 @@ export default function App() {
     safelyStore(DELETED_IMAGES_STORAGE_KEY, deletedImages);
     localStorage.setItem(LAST_SAVE_STORAGE_KEY, savedAt);
     setLastSavedAt(savedAt);
+
+    try {
+      setIsSavingToServer(true);
+      const existingId = projectId || localStorage.getItem(PROJECT_ID_STORAGE_KEY);
+      const res = await fetch("/api/save-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: projectState, id: existingId }),
+      });
+      const { id } = await res.json();
+      if (id) {
+        setProjectId(id);
+        localStorage.setItem(PROJECT_ID_STORAGE_KEY, id);
+      }
+    } catch {
+      // local save already succeeded
+    } finally {
+      setIsSavingToServer(false);
+    }
   };
+
+  const hydrateState = (saved) => {
+    if (saved.room) setRoom(saved.room);
+    if (saved.globalAccent) setGlobalAccent(saved.globalAccent);
+    if (typeof saved.warmth === "number") setWarmth(saved.warmth);
+    if (Array.isArray(saved.customRooms)) setCustomRooms(saved.customRooms);
+    if (Array.isArray(saved.hiddenRooms)) setHiddenRooms(saved.hiddenRooms);
+    if (saved.uploadedImages) setUploadedImages(saved.uploadedImages);
+    if (saved.inspirationLinks) setInspirationLinks(saved.inspirationLinks);
+    if (saved.materialUploads) setMaterialUploads(saved.materialUploads);
+    if (saved.materialLinks) setMaterialLinks(saved.materialLinks);
+    if (saved.planUploads) setPlanUploads(saved.planUploads);
+    if (saved.planLinks) setPlanLinks(saved.planLinks);
+    if (saved.extraPlanImages) setExtraPlanImages(saved.extraPlanImages);
+    if (saved.extraMaterialImages) setExtraMaterialImages(saved.extraMaterialImages);
+    if (saved.aiInspirations) setAiInspirations(saved.aiInspirations);
+    if (saved.imageAnalysis) setImageAnalysis(saved.imageAnalysis);
+    if (saved.deletedImages) setDeletedImages(saved.deletedImages);
+    if (saved.roomNuances) setRoomNuances(saved.roomNuances);
+    if (saved.roomNotes) setRoomNotes(saved.roomNotes);
+    if (saved.roomLists) setRoomLists(saved.roomLists);
+    if (saved.roomOrder) setRoomOrder(saved.roomOrder);
+    if (saved.savedAt) setLastSavedAt(saved.savedAt);
+  };
+
+  useEffect(() => {
+    const urlId = new URLSearchParams(window.location.search).get("p");
+    if (!urlId) return;
+    setLoadingFromUrl(true);
+    fetch(`/api/load-project?id=${encodeURIComponent(urlId)}`)
+      .then((r) => r.json())
+      .then(({ state }) => {
+        if (state) {
+          hydrateState(state);
+          setProjectId(urlId);
+          localStorage.setItem(PROJECT_ID_STORAGE_KEY, urlId);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingFromUrl(false));
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -2125,6 +2190,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("p")) return;
     let isMounted = true;
     readLargeValue(PROJECT_STATE_STORAGE_KEY)
       .then((saved) => {
@@ -2259,6 +2325,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-creme text-slate-800">
+      {loadingFromUrl ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="rounded-xl border border-black/10 bg-white p-8 text-center shadow-lg">
+            <p className="text-lg font-medium">Chargement du projet partagé…</p>
+            <p className="mt-1 text-sm text-slate-500">Quelques secondes</p>
+          </div>
+        </div>
+      ) : null}
       <div className="sticky top-0 z-40 border-b border-black/10 bg-white/95 px-3 py-2 backdrop-blur sm:hidden">
         <div className="flex items-center gap-2">
           <button
@@ -2351,11 +2425,25 @@ export default function App() {
               <button
                 type="button"
                 onClick={saveProject}
-                className="w-full rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 sm:w-auto"
+                disabled={isSavingToServer}
+                className="w-full rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 disabled:opacity-60 sm:w-auto"
               >
-                Enregistrer
+                {isSavingToServer ? "Enregistrement…" : "Enregistrer"}
               </button>
               {lastSavedAt ? <span className="text-xs text-slate-500">Sauvé: {new Date(lastSavedAt).toLocaleString("fr-FR")}</span> : null}
+              {projectId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/?p=${projectId}`);
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2000);
+                  }}
+                  className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-700"
+                >
+                  {copySuccess ? "Lien copié !" : "Copier le lien de partage"}
+                </button>
+              ) : null}
             </div>
           </div>
         </header>

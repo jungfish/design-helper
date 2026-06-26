@@ -76,7 +76,35 @@ createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== "POST" || !["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat"].includes(req.url)) {
+  // GET routes
+  if (req.method === "GET") {
+    if (req.url.startsWith("/api/load-project")) {
+      const urlObj = new URL(req.url, "http://localhost");
+      const id = urlObj.searchParams.get("id");
+      if (!id || !/^[a-z0-9]{6,16}$/.test(id)) {
+        sendJson(res, 400, { error: "ID invalide." });
+        return;
+      }
+      const storeId = (process.env.BLOB_STORE_ID || "").replace("store_", "").toLowerCase();
+      if (!storeId) {
+        sendJson(res, 500, { error: "BLOB_STORE_ID manquant." });
+        return;
+      }
+      try {
+        const blobRes = await fetch(`https://${storeId}.public.blob.vercel-storage.com/projects/${id}.json`);
+        if (!blobRes.ok) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
+        const state = await blobRes.json();
+        sendJson(res, 200, { state });
+      } catch (error) {
+        sendJson(res, 500, { error: error.message });
+      }
+      return;
+    }
+    sendJson(res, 404, { error: "Route inconnue." });
+    return;
+  }
+
+  if (req.method !== "POST" || !["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat", "/api/save-project"].includes(req.url)) {
     sendJson(res, 404, { error: "Route inconnue." });
     return;
   }
@@ -88,6 +116,21 @@ createServer(async (req, res) => {
     }
 
     const body = await readJson(req);
+
+    if (req.url === "/api/save-project") {
+      const { state, id } = body;
+      if (!state) { sendJson(res, 400, { error: "state requis." }); return; }
+      if (!process.env.BLOB_READ_WRITE_TOKEN) { sendJson(res, 500, { error: "BLOB_READ_WRITE_TOKEN manquant." }); return; }
+      const { put } = await import("@vercel/blob");
+      const projectId = id || Math.random().toString(36).slice(2, 10);
+      await put(`projects/${projectId}.json`, JSON.stringify(state), {
+        access: "public",
+        contentType: "application/json",
+        addRandomSuffix: false,
+      });
+      sendJson(res, 200, { id: projectId });
+      return;
+    }
 
     if (req.url === "/api/upload-image") {
       const { dataUrl, filename } = body;
