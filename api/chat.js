@@ -82,7 +82,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: CHAT_MODEL,
-        system: buildSystemPrompt(roomContext || {}),
+        instructions: buildSystemPrompt(roomContext || {}),
         input: historyToSend.map((m) => ({
           role: m.role,
           content: [
@@ -103,7 +103,10 @@ export default async function handler(req, res) {
       throw error;
     }
 
-    const { content, imagePrompt } = parseAssistantResponse(payload.output_text || "");
+    const rawText = payload.output_text ??
+      payload.output?.find(o => o.type === "message")?.content?.find(c => c.type === "output_text")?.text ??
+      "";
+    const { content, imagePrompt } = parseAssistantResponse(rawText);
     sendJson(res, 200, { content, imagePrompt: imagePrompt || undefined });
   } catch (error) {
     sendJson(res, error.status || 500, { error: error.message || "Erreur serveur." });

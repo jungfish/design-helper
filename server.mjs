@@ -187,7 +187,7 @@ createServer(async (req, res) => {
         },
         body: JSON.stringify({
           model: CHAT_MODEL,
-          system: systemPrompt,
+          instructions: systemPrompt,
           input: historyToSend.map((m) => ({
             role: m.role,
             content: [{ type: m.role === "user" ? "input_text" : "output_text", text: m.content }],
@@ -199,7 +199,9 @@ createServer(async (req, res) => {
         sendJson(res, openaiResponse.status, { error: chatPayload.error?.message || "Le chat IA a échoué." });
         return;
       }
-      const rawText = chatPayload.output_text || "";
+      const rawText = chatPayload.output_text ??
+        chatPayload.output?.find(o => o.type === "message")?.content?.find(c => c.type === "output_text")?.text ??
+        "";
       const markerStart = rawText.indexOf(CHAT_IMAGE_PROMPT_MARKER);
       let chatContent = rawText.trim();
       let imagePrompt = null;
