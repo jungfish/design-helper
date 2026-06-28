@@ -5,6 +5,40 @@ const MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
 const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL || "gpt-4.1-mini";
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-4.1";
 const CHAT_IMAGE_PROMPT_MARKER = "|||IMAGE_PROMPT|||";
+
+const CHAT_TOOLS = [
+  { type: "web_search_preview" },
+  {
+    type: "function",
+    name: "generate_image",
+    description: "Génère une visualisation d'une suggestion décorative concrète et actionnable. N'utilise que si la suggestion est clairement visuelle et précise.",
+    parameters: {
+      type: "object",
+      properties: { prompt: { type: "string", description: "Instruction en anglais pour édition d'image, 2-3 phrases, avec couleurs hex et style rétro." } },
+      required: ["prompt"], strict: true,
+    },
+  },
+  {
+    type: "function",
+    name: "add_to_shopping_list",
+    description: "Ajoute des articles concrets à la liste de courses de la pièce active.",
+    parameters: {
+      type: "object",
+      properties: { items: { type: "array", items: { type: "string" } } },
+      required: ["items"], strict: true,
+    },
+  },
+  {
+    type: "function",
+    name: "save_room_note",
+    description: "Met à jour la note de design de la pièce active.",
+    parameters: {
+      type: "object",
+      properties: { note: { type: "string" } },
+      required: ["note"], strict: true,
+    },
+  },
+];
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
 
 function sendJson(res, status, payload) {
@@ -177,15 +211,20 @@ createServer(async (req, res) => {
         "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
         "Tu aides l'utilisateur à prendre des décisions de design pour son appartement.",
         "",
-        `Contexte de la pièce active — ${ctx.label || "pièce"}:`,
-        `Ligne directrice: ${ctx.line || ""}`,
+        ctx.generalContext ? `Goûts & contraintes de l'appartement: ${ctx.generalContext}` : null,
+        ctx.generalContext ? "" : null,
+        `Pièce active — ${ctx.label || "pièce"}: ${ctx.line || ""}`,
         `Palette: dominante ${ctx.dominantName || ""} (${ctx.dominantHex || ""}), secondaire ${ctx.secondaryName || ""} (${ctx.secondaryHex || ""}), accent ${ctx.accentName || ""} (${ctx.accentHex || ""})`,
-        ctx.roomNote ? `Notes utilisateur: ${ctx.roomNote}` : null,
+        ctx.roomNote ? `Notes: ${ctx.roomNote}` : null,
         ctx.imageMetadataSummary ? `Contexte visuel: ${ctx.imageMetadataSummary}` : null,
+        ctx.shoppingItems?.length ? `En liste de courses: ${ctx.shoppingItems.join(", ")}` : null,
+        ctx.materialSummary?.length ? `Matériaux choisis: ${ctx.materialSummary.join("; ")}` : null,
+        ctx.allRoomsSummary ? `Autres pièces: ${ctx.allRoomsSummary}` : null,
         "",
         "Règles:",
         "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
         "- Reste dans l'univers rétro, coloré, doux — jamais d'accents rouges, pas de style minimaliste froid",
+        "- Si l'utilisateur demande des produits, utilise la recherche web pour trouver des résultats réels et inclus des URLs directes",
         `- Si tu suggères une modification visuelle concrète et précise, termine ta réponse par exactement ce bloc sur une nouvelle ligne: ${CHAT_IMAGE_PROMPT_MARKER}{"prompt":"<instruction en anglais pour édition d'image>"}${CHAT_IMAGE_PROMPT_MARKER}`,
         "- N'inclus ce bloc que si la suggestion est clairement visuelle et actionnable",
       ].filter(Boolean).join("\n");
@@ -199,37 +238,89 @@ createServer(async (req, res) => {
         },
         body: JSON.stringify({
           model: CHAT_MODEL,
+          stream: true,
+          tools: CHAT_TOOLS,
           instructions: systemPrompt,
-          input: historyToSend.map((m) => ({
-            role: m.role,
-            content: m.role === "user" && m.image
-              ? [
+          input: historyToSend.map((m) => {
+            const imgList = m.images?.length ? m.images : m.image ? [m.image] : [];
+            if (m.role === "user" && imgList.length > 0) {
+              return {
+                role: m.role,
+                content: [
                   ...(m.content ? [{ type: "input_text", text: m.content }] : []),
-                  { type: "input_image", image_url: m.image },
-                ]
-              : [{ type: m.role === "user" ? "input_text" : "output_text", text: m.content }],
-          })),
+                  ...imgList.map((img) => ({ type: "input_image", image_url: img })),
+                ],
+              };
+            }
+            return {
+              role: m.role,
+              content: [{ type: m.role === "user" ? "input_text" : "output_text", text: m.content }],
+            };
+          }),
         }),
       });
-      const chatPayload = await openaiResponse.json();
+
       if (!openaiResponse.ok) {
-        sendJson(res, openaiResponse.status, { error: chatPayload.error?.message || "Le chat IA a échoué." });
+        const errPayload = await openaiResponse.json().catch(() => ({}));
+        sendJson(res, openaiResponse.status, { error: errPayload.error?.message || "Le chat IA a échoué." });
         return;
       }
-      const rawText = chatPayload.output_text ??
-        chatPayload.output?.find(o => o.type === "message")?.content?.find(c => c.type === "output_text")?.text ??
-        "";
-      const markerStart = rawText.indexOf(CHAT_IMAGE_PROMPT_MARKER);
-      let chatContent = rawText.trim();
+
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      });
+
+      const writeEvent = (event, data) => {
+        try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* client disconnected */ }
+      };
+
+      const reader = openaiResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6);
+            if (dataStr === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (currentEvent === "response.output_text.delta" && parsed.delta) {
+                fullText += parsed.delta;
+                writeEvent("delta", { text: parsed.delta });
+              } else if (currentEvent === "response.output_item.done" && parsed.item?.type === "function_call") {
+                try {
+                  const args = JSON.parse(parsed.item.arguments);
+                  writeEvent("tool_call", { name: parsed.item.name, args });
+                } catch { /* malformed */ }
+              }
+            } catch { /* non-JSON */ }
+          }
+        }
+      }
+
+      const markerStart = fullText.indexOf(CHAT_IMAGE_PROMPT_MARKER);
       let imagePrompt = null;
       if (markerStart !== -1) {
-        chatContent = rawText.slice(0, markerStart).trim();
-        const afterFirst = rawText.slice(markerStart + CHAT_IMAGE_PROMPT_MARKER.length);
+        const afterFirst = fullText.slice(markerStart + CHAT_IMAGE_PROMPT_MARKER.length);
         const markerEnd = afterFirst.indexOf(CHAT_IMAGE_PROMPT_MARKER);
         const jsonPart = markerEnd !== -1 ? afterFirst.slice(0, markerEnd) : afterFirst;
         try { imagePrompt = JSON.parse(jsonPart.trim()).prompt || null; } catch { /* ignore */ }
       }
-      sendJson(res, 200, { content: chatContent, imagePrompt: imagePrompt || undefined });
+      writeEvent("done", { imagePrompt: imagePrompt || undefined });
+      res.end();
       return;
     }
 
