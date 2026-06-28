@@ -46,6 +46,15 @@ export default async function handler(req, res) {
       id: projectId,
       state,
       updated_at: new Date().toISOString(),
+      // Dual-write config columns (Phase 4)
+      active_room:       state.room       || null,
+      global_accent:     state.globalAccent || null,
+      warmth:            typeof state.warmth === "number" ? state.warmth : null,
+      general_context:   state.generalContext || null,
+      custom_rooms:      state.customRooms   || [],
+      hidden_rooms:      state.hiddenRooms   || [],
+      room_order:        state.roomOrder     || null,
+      general_resources: state.generalResources || [],
     };
 
     if (isNewProject) {
@@ -73,6 +82,45 @@ export default async function handler(req, res) {
         user_id: user.id,
         role: "owner",
       }, { onConflict: "project_id,user_id" });
+    }
+
+    // Dual-write room_media (Phase 5) — fire-and-forget
+    const mediaData = {
+      uploadedImages:      state.uploadedImages      || {},
+      inspirationLinks:    state.inspirationLinks    || {},
+      aiInspirations:      state.aiInspirations      || {},
+      instagramItems:      state.instagramItems      || {},
+      imageAnalysis:       state.imageAnalysis       || {},
+      deletedImages:       state.deletedImages       || {},
+      materialUploads:     state.materialUploads     || {},
+      materialLinks:       state.materialLinks       || {},
+      extraMaterialImages: state.extraMaterialImages || {},
+      extraMaterialMeta:   state.extraMaterialMeta   || {},
+      planUploads:         state.planUploads         || {},
+      planLinks:           state.planLinks           || {},
+      extraPlanImages:     state.extraPlanImages     || {},
+    };
+    supabaseUser.from("room_media")
+      .upsert({ project_id: projectId, data: mediaData, updated_at: new Date().toISOString() }, { onConflict: "project_id" })
+      .then(() => {}).catch(() => {});
+
+    // Dual-write room_nuances (Phase 4) — fire-and-forget
+    if (state.roomNuances && typeof state.roomNuances === "object") {
+      const nuanceRows = Object.entries(state.roomNuances).map(([roomKey, n]) => ({
+        project_id:      projectId,
+        room_key:        roomKey,
+        dominant:        n.dominant        || null,
+        secondary:       n.secondary       || null,
+        accent:          n.accent          || null,
+        dominant_color:  n.dominantColor   || null,
+        secondary_color: n.secondaryColor  || null,
+        updated_at:      new Date().toISOString(),
+      }));
+      if (nuanceRows.length) {
+        supabaseUser.from("room_nuances")
+          .upsert(nuanceRows, { onConflict: "project_id,room_key" })
+          .then(() => {}).catch(() => {});
+      }
     }
 
     // Audit log (dédupliqué automatiquement si < 5 min)

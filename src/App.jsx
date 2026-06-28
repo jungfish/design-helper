@@ -2538,6 +2538,8 @@ function GeneralView({
           label="Appartement"
           roomLists={roomLists}
           setRoomLists={setRoomLists}
+          projectId={projectId}
+          saveRoomItemsFn={saveRoomItemsToServer}
         />
       </div>
       <GeneralResourcesSection
@@ -2583,7 +2585,7 @@ function renderMessageContent(content) {
   });
 }
 
-function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes }) {
+function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -2618,6 +2620,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
     setChatHistory((prev) => ({ ...prev, [room]: nextHistory }));
     setInput("");
     setIsLoading(true);
+    if (saveMessageFn && projectId) saveMessageFn(projectId, room, userMsg);
 
     const imageMetadataSummary = (aiContext.roomImageMetadata || [])
       .map((item) => {
@@ -2671,6 +2674,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
           notices.push(`${newItems.length} article${newItems.length > 1 ? "s" : ""} ajouté${newItems.length > 1 ? "s" : ""} à ta liste.`);
         } else if (call.name === "save_room_note" && setRoomNotes) {
           setRoomNotes((prev) => ({ ...prev, [room]: call.args.note }));
+          if (saveNoteFn && projectId) saveNoteFn(projectId, room, call.args.note);
           notices.push("Note de pièce mise à jour.");
         }
       }
@@ -2695,6 +2699,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
         const assistantMsg = { id: `msg-${Date.now()}-a`, role: "assistant", content: data.content || "", imagePrompt: data.imagePrompt };
         if (data.toolCalls?.length) applyToolCalls(data.toolCalls, assistantMsg);
         setChatHistory((prev) => ({ ...prev, [room]: [...nextHistory, assistantMsg] }));
+        if (saveMessageFn && projectId) saveMessageFn(projectId, room, assistantMsg);
         return;
       }
 
@@ -2747,6 +2752,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
                   ...prev,
                   [room]: (prev[room] || []).map((m) => m.id === placeholderId ? finalMsg : m),
                 }));
+                if (saveMessageFn && projectId) saveMessageFn(projectId, room, finalMsg);
               }
             } catch (parseErr) {
               if (currentEvent === "error") throw parseErr;
@@ -3131,7 +3137,7 @@ function renderItemText(text, url) {
   return parts.length > 0 ? parts : text;
 }
 
-function DocumentsSection({ room, roomDocuments, setRoomDocuments }) {
+function DocumentsSection({ room, roomDocuments, setRoomDocuments, projectId, saveDocFn, deleteDocFn }) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -3158,6 +3164,7 @@ function DocumentsSection({ room, roomDocuments, setRoomDocuments }) {
           ...prev,
           [room]: [...(prev[room] || []), doc],
         }));
+        if (saveDocFn && projectId) saveDocFn(projectId, room, doc);
       }
     } finally {
       setUploading(false);
@@ -3170,6 +3177,7 @@ function DocumentsSection({ room, roomDocuments, setRoomDocuments }) {
       ...prev,
       [room]: (prev[room] || []).filter((d) => d.id !== id),
     }));
+    if (deleteDocFn && projectId) deleteDocFn(projectId, id);
   };
 
   const docIcon = (type) => {
@@ -3251,7 +3259,7 @@ function DocumentsSection({ room, roomDocuments, setRoomDocuments }) {
   );
 }
 
-function ListeSection({ room, label, roomLists, setRoomLists }) {
+function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn }) {
   const [shopInput, setShopInput] = useState("");
   const [todoInput, setTodoInput] = useState("");
   const [linkMode, setLinkMode] = useState({ shopping: false, todos: false });
@@ -3266,24 +3274,26 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
     const id = `${listKey}-${Date.now()}`;
     const urlMatch = text.trim().match(/https?:\/\/[^\s]+/);
     const url = urlMatch ? urlMatch[0] : null;
+    const newItem = { id, text: text.trim(), url: url || undefined, done: false };
+    const currentItems = (roomLists[room] || {})[listKey] || [];
+    const newItems = [...currentItems, newItem];
     setRoomLists((prev) => ({
       ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: text.trim(), url: url || undefined, done: false }] },
+      [room]: { ...(prev[room] || {}), [listKey]: newItems },
     }));
     setter("");
+    if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
     if (url) {
       try {
         const preview = await fetchLinkPreview(url);
         if (preview.image) {
-          setRoomLists((prev) => ({
-            ...prev,
-            [room]: {
-              ...(prev[room] || {}),
-              [listKey]: ((prev[room] || {})[listKey] || []).map((item) =>
-                item.id === id ? { ...item, image: preview.image, previewTitle: preview.title } : item
-              ),
-            },
-          }));
+          setRoomLists((prev) => {
+            const updatedItems = ((prev[room] || {})[listKey] || []).map((item) =>
+              item.id === id ? { ...item, image: preview.image, previewTitle: preview.title } : item
+            );
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, updatedItems);
+            return { ...prev, [room]: { ...(prev[room] || {}), [listKey]: updatedItems } };
+          });
         }
       } catch {
         // pas de preview, pas grave
@@ -3292,17 +3302,23 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
   };
 
   const toggleItem = (listKey, id) => {
+    const currentItems = (roomLists[room] || {})[listKey] || [];
+    const newItems = currentItems.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
     setRoomLists((prev) => ({
       ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: ((prev[room] || {})[listKey] || []).map((item) => (item.id === id ? { ...item, done: !item.done } : item)) },
+      [room]: { ...(prev[room] || {}), [listKey]: newItems },
     }));
+    if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
   };
 
   const removeItem = (listKey, id) => {
+    const currentItems = (roomLists[room] || {})[listKey] || [];
+    const newItems = currentItems.filter((item) => item.id !== id);
     setRoomLists((prev) => ({
       ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: ((prev[room] || {})[listKey] || []).filter((item) => item.id !== id) },
+      [room]: { ...(prev[room] || {}), [listKey]: newItems },
     }));
+    if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
   };
 
   const addLinkItem = async (listKey) => {
@@ -3311,22 +3327,24 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
     const id = `${listKey}-${Date.now()}`;
     setLinkInput((prev) => ({ ...prev, [listKey]: { label: "", url: "" } }));
     setLinkMode((prev) => ({ ...prev, [listKey]: false }));
+    const currentItems = (roomLists[room] || {})[listKey] || [];
+    const newItem = { id, text: lbl.trim(), url: url.trim(), done: false };
+    const newItems = [...currentItems, newItem];
     setRoomLists((prev) => ({
       ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: lbl.trim(), url: url.trim(), done: false }] },
+      [room]: { ...(prev[room] || {}), [listKey]: newItems },
     }));
+    if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
     try {
       const preview = await fetchLinkPreview(url.trim());
       if (preview.image) {
-        setRoomLists((prev) => ({
-          ...prev,
-          [room]: {
-            ...(prev[room] || {}),
-            [listKey]: ((prev[room] || {})[listKey] || []).map((item) =>
-              item.id === id ? { ...item, image: preview.image, previewTitle: preview.title } : item
-            ),
-          },
-        }));
+        setRoomLists((prev) => {
+          const updatedItems = ((prev[room] || {})[listKey] || []).map((item) =>
+            item.id === id ? { ...item, image: preview.image, previewTitle: preview.title } : item
+          );
+          if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, updatedItems);
+          return { ...prev, [room]: { ...(prev[room] || {}), [listKey]: updatedItems } };
+        });
       }
     } catch {
       // pas de preview, pas grave
@@ -3695,6 +3713,7 @@ export default function App() {
   });
   const isApplyingRemoteUpdate = useRef(false);
   const autoSaveTimerRef = useRef(null);
+  const roomNoteTimerRef = useRef(null);
   const [isSavingToServer, setIsSavingToServer] = useState(false);
   const [loadingFromUrl, setLoadingFromUrl] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -4063,6 +4082,51 @@ export default function App() {
     });
   };
 
+  const saveRoomNoteToServer = (pid, roomKey, content) => {
+    if (!pid) return;
+    authedFetch("/api/save-room-note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: pid, roomKey, content }),
+    }).catch(() => {});
+  };
+
+  const saveRoomDocumentToServer = (pid, roomKey, doc) => {
+    if (!pid) return;
+    authedFetch("/api/save-room-document", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: pid, roomKey, document: doc }),
+    }).catch(() => {});
+  };
+
+  const deleteRoomDocumentFromServer = (pid, documentId) => {
+    if (!pid) return;
+    authedFetch("/api/save-room-document", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: pid, documentId }),
+    }).catch(() => {});
+  };
+
+  const saveChatMessageToServer = (pid, roomKey, message) => {
+    if (!pid) return;
+    authedFetch("/api/save-chat-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: pid, roomKey, message }),
+    }).catch(() => {});
+  };
+
+  const saveRoomItemsToServer = (pid, roomKey, listKey, items) => {
+    if (!pid) return;
+    authedFetch("/api/save-room-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: pid, roomKey, listKey, items }),
+    }).catch(() => {});
+  };
+
   // snapshot=true uniquement via le bouton "Point de sauvegarde", pas l'auto-save
   const saveProject = async ({ snapshot = false, snapshotLabel = "" } = {}) => {
     const savedAt = new Date().toISOString();
@@ -4130,9 +4194,18 @@ export default function App() {
         body: JSON.stringify({ state: projectState, id: existingId, snapshot, snapshotLabel }),
       });
       const { id } = await res.json();
+      const savedProjectId = id || existingId;
       if (id) {
         setProjectId(id);
         localStorage.setItem(PROJECT_ID_STORAGE_KEY, id);
+      }
+      // Dual-write : synchro room_items dans la table normalisée
+      if (savedProjectId) {
+        for (const [rk, lists] of Object.entries(roomLists)) {
+          for (const [lk, items] of Object.entries(lists)) {
+            if (Array.isArray(items)) saveRoomItemsToServer(savedProjectId, rk, lk, items);
+          }
+        }
       }
     } catch {
       // local save already succeeded
@@ -4147,28 +4220,63 @@ export default function App() {
     if (typeof saved.warmth === "number") setWarmth(saved.warmth);
     if (Array.isArray(saved.customRooms)) setCustomRooms(saved.customRooms);
     if (Array.isArray(saved.hiddenRooms)) setHiddenRooms(saved.hiddenRooms);
-    if (saved.uploadedImages) setUploadedImages(saved.uploadedImages);
-    if (saved.inspirationLinks) setInspirationLinks(saved.inspirationLinks);
-    if (saved.materialUploads) setMaterialUploads(saved.materialUploads);
-    if (saved.materialLinks) setMaterialLinks(saved.materialLinks);
-    if (saved.planUploads) setPlanUploads(saved.planUploads);
-    if (saved.planLinks) setPlanLinks(saved.planLinks);
-    if (saved.extraPlanImages) setExtraPlanImages(saved.extraPlanImages);
-    if (saved.extraMaterialImages) setExtraMaterialImages(saved.extraMaterialImages);
-    if (saved.extraMaterialMeta) setExtraMaterialMeta(saved.extraMaterialMeta);
-    if (saved.aiInspirations) setAiInspirations(saved.aiInspirations);
-    if (saved.instagramItems) setInstagramItems(saved.instagramItems);
-    if (saved.imageAnalysis) setImageAnalysis(saved.imageAnalysis);
-    if (saved.deletedImages) setDeletedImages(saved.deletedImages);
-    if (saved.roomNuances) setRoomNuances(saved.roomNuances);
-    if (saved.roomNotes) setRoomNotes(saved.roomNotes);
-    if (saved.roomLists) setRoomLists(saved.roomLists);
-    if (saved.roomDocuments) setRoomDocuments(saved.roomDocuments);
+    // Utiliser room_media normalisé seulement s'il contient des données réelles (non-vides)
+    const hasRealMedia = saved.roomMediaNormalized &&
+      Object.values(saved.roomMediaNormalized).some((v) => v && Object.keys(v).length > 0);
+    const media = hasRealMedia ? saved.roomMediaNormalized : saved;
+    if (media.uploadedImages      && Object.keys(media.uploadedImages).length)      setUploadedImages(media.uploadedImages);
+    if (media.inspirationLinks    && Object.keys(media.inspirationLinks).length)    setInspirationLinks(media.inspirationLinks);
+    if (media.materialUploads     && Object.keys(media.materialUploads).length)     setMaterialUploads(media.materialUploads);
+    if (media.materialLinks       && Object.keys(media.materialLinks).length)       setMaterialLinks(media.materialLinks);
+    if (media.planUploads         && Object.keys(media.planUploads).length)         setPlanUploads(media.planUploads);
+    if (media.planLinks           && Object.keys(media.planLinks).length)           setPlanLinks(media.planLinks);
+    if (media.extraPlanImages     && Object.keys(media.extraPlanImages).length)     setExtraPlanImages(media.extraPlanImages);
+    if (media.extraMaterialImages && Object.keys(media.extraMaterialImages).length) setExtraMaterialImages(media.extraMaterialImages);
+    if (media.extraMaterialMeta   && Object.keys(media.extraMaterialMeta).length)   setExtraMaterialMeta(media.extraMaterialMeta);
+    if (media.aiInspirations      && Object.keys(media.aiInspirations).length)      setAiInspirations(media.aiInspirations);
+    if (media.instagramItems      && Object.keys(media.instagramItems).length)      setInstagramItems(media.instagramItems);
+    if (media.imageAnalysis       && Object.keys(media.imageAnalysis).length)       setImageAnalysis(media.imageAnalysis);
+    if (media.deletedImages       && Object.keys(media.deletedImages).length)       setDeletedImages(media.deletedImages);
+    if (saved.roomNuancesNormalized) setRoomNuances(saved.roomNuancesNormalized);
+    else if (saved.roomNuances) setRoomNuances(saved.roomNuances);
+    if (saved.roomNotesNormalized) setRoomNotes(saved.roomNotesNormalized);
+    else if (saved.roomNotes) setRoomNotes(saved.roomNotes);
+    // Préférer les données normalisées (roomItems) si disponibles
+    if (Array.isArray(saved.roomItems) && saved.roomItems.length > 0) {
+      const built = {};
+      for (const item of saved.roomItems) {
+        if (!built[item.room_key]) built[item.room_key] = {};
+        if (!built[item.room_key][item.list_key]) built[item.room_key][item.list_key] = [];
+        built[item.room_key][item.list_key].push({
+          id: item.id,
+          text: item.text,
+          done: item.done,
+          url: item.url || undefined,
+          image: item.image || undefined,
+          previewTitle: item.preview_title || undefined,
+        });
+      }
+      setRoomLists(built);
+    } else if (saved.roomLists) {
+      setRoomLists(saved.roomLists);
+    }
+    if (saved.roomDocumentsNormalized) setRoomDocuments(saved.roomDocumentsNormalized);
+    else if (saved.roomDocuments) setRoomDocuments(saved.roomDocuments);
     if (saved.roomOrder) setRoomOrder(saved.roomOrder);
     if (saved.savedAt) setLastSavedAt(saved.savedAt);
     if (typeof saved.generalContext === "string") setGeneralContext(saved.generalContext);
     if (Array.isArray(saved.generalResources)) setGeneralResources(saved.generalResources);
-    if (saved.chatHistory && typeof saved.chatHistory === "object") setChatHistory(saved.chatHistory);
+    // Préférer les messages normalisés si disponibles
+    if (Array.isArray(saved.chatMessages) && saved.chatMessages.length > 0) {
+      const built = {};
+      for (const m of saved.chatMessages) {
+        if (!built[m.roomKey]) built[m.roomKey] = [];
+        built[m.roomKey].push({ id: m.id, role: m.role, content: m.content, imagePrompt: m.imagePrompt, error: m.error });
+      }
+      setChatHistory(built);
+    } else if (saved.chatHistory && typeof saved.chatHistory === "object") {
+      setChatHistory(saved.chatHistory);
+    }
   };
 
   useEffect(() => {
@@ -4178,9 +4286,16 @@ export default function App() {
     setLoadingFromUrl(true);
     authedFetch(`/api/load-project?id=${encodeURIComponent(idToLoad)}&t=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then(({ state, isOwner: owner, inviteCode: code }) => {
+      .then(({ state, isOwner: owner, inviteCode: code, roomItems, chatMessages, roomNotesNormalized, roomDocumentsNormalized, roomNuancesNormalized, roomMediaNormalized }) => {
         if (state) {
-          hydrateState(state);
+          const extra = {};
+          if (roomItems?.length) extra.roomItems = roomItems;
+          if (chatMessages?.length) extra.chatMessages = chatMessages;
+          if (roomNotesNormalized) extra.roomNotesNormalized = roomNotesNormalized;
+          if (roomDocumentsNormalized) extra.roomDocumentsNormalized = roomDocumentsNormalized;
+          if (roomNuancesNormalized) extra.roomNuancesNormalized = roomNuancesNormalized;
+          if (roomMediaNormalized) extra.roomMediaNormalized = roomMediaNormalized;
+          hydrateState(Object.keys(extra).length ? { ...state, ...extra } : state);
           setProjectId(idToLoad);
           localStorage.setItem(PROJECT_ID_STORAGE_KEY, idToLoad);
         }
@@ -4245,7 +4360,7 @@ export default function App() {
       // Charger le projet
       const loaded = await authedFetch(`/api/load-project?id=${data.projectId}`).then((r) => r.json());
       if (loaded.state) {
-        hydrateState(loaded.state);
+        hydrateState(loaded.roomItems?.length ? { ...loaded.state, roomItems: loaded.roomItems } : loaded.state);
         if (typeof loaded.isOwner === "boolean") setIsOwner(loaded.isOwner);
         if (loaded.inviteCode) setInviteCode(loaded.inviteCode);
       }
@@ -4272,6 +4387,39 @@ export default function App() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime room_items — sync granulaire des todos/shopping entre utilisateurs
+  useEffect(() => {
+    if (!projectId || !import.meta.env.VITE_SUPABASE_URL) return;
+    let reloadTimer;
+    const roomItemsChannel = supabase
+      .channel(`room-items-${projectId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "room_items", filter: `project_id=eq.${projectId}` },
+        () => {
+          // Debounce : un seul rechargement même si plusieurs events arrivent en rafale (ex: delete+insert)
+          clearTimeout(reloadTimer);
+          reloadTimer = setTimeout(() => {
+            if (isApplyingRemoteUpdate.current) return;
+            authedFetch(`/api/load-room-items?projectId=${encodeURIComponent(projectId)}`)
+              .then((r) => r.json())
+              .then(({ items }) => {
+                if (!Array.isArray(items) || items.length === 0) return;
+                isApplyingRemoteUpdate.current = true;
+                hydrateState({ roomItems: items });
+                setTimeout(() => { isApplyingRemoteUpdate.current = false; }, 200);
+              })
+              .catch(() => {});
+          }, 300);
+        }
+      )
+      .subscribe();
+    return () => {
+      clearTimeout(reloadTimer);
+      supabase.removeChannel(roomItemsChannel);
+    };
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save debounce — silently push changes to Supabase for real-time sharing
@@ -5002,7 +5150,14 @@ export default function App() {
                     className="mt-1 min-h-24 w-full rounded-md border border-black/15 bg-white p-2"
                     placeholder="Ajouter une note sur cette pièce..."
                     value={roomNotes[room] || ""}
-                    onChange={(e) => setRoomNotes((prev) => ({ ...prev, [room]: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRoomNotes((prev) => ({ ...prev, [room]: val }));
+                      if (projectId) {
+                        clearTimeout(roomNoteTimerRef.current);
+                        roomNoteTimerRef.current = setTimeout(() => saveRoomNoteToServer(projectId, room, val), 1000);
+                      }
+                    }}
                   />
                 </label>
               </div>
@@ -5114,11 +5269,16 @@ export default function App() {
               label={preset.label}
               roomLists={roomLists}
               setRoomLists={setRoomLists}
+              projectId={projectId}
+              saveRoomItemsFn={saveRoomItemsToServer}
             />
             <DocumentsSection
               room={room}
               roomDocuments={roomDocuments}
               setRoomDocuments={setRoomDocuments}
+              projectId={projectId}
+              saveDocFn={saveRoomDocumentToServer}
+              deleteDocFn={deleteRoomDocumentFromServer}
             />
           </div>
         ) : (
@@ -5129,6 +5289,9 @@ export default function App() {
             setChatHistory={setChatHistory}
             setRoomLists={setRoomLists}
             setRoomNotes={setRoomNotes}
+            projectId={projectId}
+            saveMessageFn={saveChatMessageToServer}
+            saveNoteFn={saveRoomNoteToServer}
             roomImages={[
               ...(roomPlanImages[room] || []).map((src, i) => ({ src: planUploads[`${room}-plan-${i}`] || src, key: `${room}-plan-${i}` })),
               ...(extraPlanImages[room] || []).map((src, i) => ({ src, key: `${room}-plan-extra-${i}` })),

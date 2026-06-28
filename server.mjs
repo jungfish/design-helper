@@ -45,7 +45,7 @@ function sendJson(res, status, payload) {
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   });
   res.end(JSON.stringify(payload));
@@ -146,20 +146,57 @@ createServer(async (req, res) => {
       const user = await getAuthUser(req);
       if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
       try {
-        // Utiliser service role pour local dev (contourne RLS)
-        const sbRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(id)}&select=state,name,invite_code,owner_id`,
-          { headers: getSupabaseHeaders(req, true) }
-        );
-        if (!sbRes.ok) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
-        const rows = await sbRes.json();
+        const sbH = getSupabaseHeaders(req, true);
+        const eid = encodeURIComponent(id);
+        const [projRes, itemsRes, chatRes, notesRes, docsRes, nuancesRes, mediaRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/projects?id=eq.${eid}&select=state,name,invite_code,owner_id`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/room_items?project_id=eq.${eid}&select=id,room_key,list_key,text,done,url,image,preview_title,position&order=position.asc`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${eid}&select=id,room_key,role,content,image_prompt,error,created_at&order=created_at.asc`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/room_notes?project_id=eq.${eid}&select=room_key,content`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/room_documents?project_id=eq.${eid}&select=id,room_key,name,url,type,size,uploaded_at&order=uploaded_at.asc`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/room_nuances?project_id=eq.${eid}&select=room_key,dominant,secondary,accent,dominant_color,secondary_color`, { headers: sbH }),
+          fetch(`${SUPABASE_URL}/rest/v1/room_media?project_id=eq.${eid}&select=data`, { headers: sbH }),
+        ]);
+        if (!projRes.ok) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
+        const rows = await projRes.json();
         if (!rows.length) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
         const row = rows[0];
+
+        const [roomItemsData, chatData, notesData, docsData, nuancesData, mediaRows] = await Promise.all([
+          itemsRes.json(), chatRes.json(), notesRes.json(), docsRes.json(), nuancesRes.json(), mediaRes.json(),
+        ]);
+
+        const chatMessages = (chatData || []).map((m) => ({
+          id: m.id, roomKey: m.room_key, role: m.role, content: m.content,
+          imagePrompt: m.image_prompt || undefined, error: m.error || undefined,
+        }));
+
+        const roomNotesNormalized = {};
+        for (const n of (notesData || [])) roomNotesNormalized[n.room_key] = n.content;
+
+        const roomDocumentsNormalized = {};
+        for (const d of (docsData || [])) {
+          if (!roomDocumentsNormalized[d.room_key]) roomDocumentsNormalized[d.room_key] = [];
+          roomDocumentsNormalized[d.room_key].push({ id: d.id, name: d.name, url: d.url, type: d.type, size: d.size, uploadedAt: d.uploaded_at });
+        }
+
+        const roomNuancesNormalized = {};
+        for (const n of (nuancesData || [])) {
+          roomNuancesNormalized[n.room_key] = { dominant: n.dominant, secondary: n.secondary, accent: n.accent, dominantColor: n.dominant_color, secondaryColor: n.secondary_color };
+        }
+
+        const mediaRow = (mediaRows || [])[0];
         sendJson(res, 200, {
           state: row.state,
           name: row.name,
           inviteCode: row.invite_code,
           isOwner: row.owner_id === user.id,
+          roomItems: roomItemsData || [],
+          chatMessages,
+          roomNotesNormalized: Object.keys(roomNotesNormalized).length ? roomNotesNormalized : null,
+          roomDocumentsNormalized: Object.keys(roomDocumentsNormalized).length ? roomDocumentsNormalized : null,
+          roomMediaNormalized: mediaRow?.data || null,
+          roomNuancesNormalized: Object.keys(roomNuancesNormalized).length ? roomNuancesNormalized : null,
         });
       } catch (err) { sendJson(res, 500, { error: err.message }); }
       return;
@@ -183,12 +220,49 @@ createServer(async (req, res) => {
       return;
     }
 
+    if (req.url.startsWith("/api/load-room-items")) {
+      const urlObj = new URL(req.url, "http://localhost");
+      const projectId = urlObj.searchParams.get("projectId");
+      if (!projectId) { sendJson(res, 400, { error: "projectId requis." }); return; }
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      try {
+        const sbRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/room_items?project_id=eq.${encodeURIComponent(projectId)}&select=id,room_key,list_key,text,done,url,image,preview_title,position&order=position.asc`,
+          { headers: getSupabaseHeaders(req, true) }
+        );
+        const items = await sbRes.json();
+        sendJson(res, 200, { items: items || [] });
+      } catch (err) { sendJson(res, 500, { error: err.message }); }
+      return;
+    }
+
+    if (req.url.startsWith("/api/load-chat-history")) {
+      const urlObj = new URL(req.url, "http://localhost");
+      const projectId = urlObj.searchParams.get("projectId");
+      const roomKey = urlObj.searchParams.get("roomKey");
+      if (!projectId || !roomKey) { sendJson(res, 400, { error: "projectId et roomKey requis." }); return; }
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      try {
+        const sbRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${encodeURIComponent(projectId)}&room_key=eq.${encodeURIComponent(roomKey)}&select=id,role,content,image_prompt,error,created_at&order=created_at.asc&limit=50`,
+          { headers: getSupabaseHeaders(req, true) }
+        );
+        const msgs = await sbRes.json();
+        sendJson(res, 200, { messages: (msgs || []).map(m => ({ id: m.id, role: m.role, content: m.content, imagePrompt: m.image_prompt || undefined, error: m.error || undefined })) });
+      } catch (err) { sendJson(res, 500, { error: err.message }); }
+      return;
+    }
+
     sendJson(res, 404, { error: "Route inconnue." });
     return;
   }
 
-  const POST_ROUTES = ["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat", "/api/save-project", "/api/join-project", "/api/restore-snapshot"];
-  if (req.method !== "POST" || !POST_ROUTES.includes(req.url)) {
+  const POST_ROUTES = ["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat", "/api/save-project", "/api/join-project", "/api/restore-snapshot", "/api/save-room-items", "/api/save-chat-message", "/api/save-room-note", "/api/save-room-document"];
+  if ((req.method !== "POST" && req.method !== "DELETE") || !POST_ROUTES.includes(req.url)) {
     sendJson(res, 404, { error: "Route inconnue." });
     return;
   }
@@ -210,7 +284,17 @@ createServer(async (req, res) => {
       if (!SUPABASE_URL) { sendJson(res, 500, { error: "Configuration Supabase manquante." }); return; }
       const projectId = id || Math.random().toString(36).slice(2, 10);
       const isNew = !id;
-      const upsertData = { id: projectId, state, updated_at: new Date().toISOString() };
+      const upsertData = {
+        id: projectId, state, updated_at: new Date().toISOString(),
+        active_room:       state.room           || null,
+        global_accent:     state.globalAccent   || null,
+        warmth:            typeof state.warmth === "number" ? state.warmth : null,
+        general_context:   state.generalContext || null,
+        custom_rooms:      state.customRooms    || [],
+        hidden_rooms:      state.hiddenRooms    || [],
+        room_order:        state.roomOrder      || null,
+        general_resources: state.generalResources || [],
+      };
       if (isNew) upsertData.owner_id = user.id;
       const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/projects`, {
         method: "POST",
@@ -225,8 +309,37 @@ createServer(async (req, res) => {
           body: JSON.stringify({ project_id: projectId, user_id: user.id, role: "owner" }),
         });
       }
+      // Dual-write room_media — fire-and-forget
+      const mediaData = {
+        uploadedImages: state.uploadedImages || {}, inspirationLinks: state.inspirationLinks || {},
+        aiInspirations: state.aiInspirations || {}, instagramItems: state.instagramItems || {},
+        imageAnalysis: state.imageAnalysis || {}, deletedImages: state.deletedImages || {},
+        materialUploads: state.materialUploads || {}, materialLinks: state.materialLinks || {},
+        extraMaterialImages: state.extraMaterialImages || {}, extraMaterialMeta: state.extraMaterialMeta || {},
+        planUploads: state.planUploads || {}, planLinks: state.planLinks || {}, extraPlanImages: state.extraPlanImages || {},
+      };
+      fetch(`${SUPABASE_URL}/rest/v1/room_media`, {
+        method: "POST",
+        headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+        body: JSON.stringify({ project_id: projectId, data: mediaData, updated_at: new Date().toISOString() }),
+      }).catch(() => {});
+      // Dual-write room_nuances — fire-and-forget
+      if (state.roomNuances && typeof state.roomNuances === "object") {
+        const nuanceRows = Object.entries(state.roomNuances).map(([roomKey, n]) => ({
+          project_id: projectId, room_key: roomKey, dominant: n.dominant || null,
+          secondary: n.secondary || null, accent: n.accent || null,
+          dominant_color: n.dominantColor || null, secondary_color: n.secondaryColor || null,
+          updated_at: new Date().toISOString(),
+        }));
+        if (nuanceRows.length) {
+          fetch(`${SUPABASE_URL}/rest/v1/room_nuances`, {
+            method: "POST",
+            headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+            body: JSON.stringify(nuanceRows),
+          }).catch(() => {});
+        }
+      }
       if (snapshot) {
-        // Snapshot via RPC
         await fetch(`${SUPABASE_URL}/rest/v1/rpc/save_snapshot`, {
           method: "POST",
           headers: getSupabaseHeaders(req, true),
@@ -270,6 +383,107 @@ createServer(async (req, res) => {
       });
       sendJson(res, 200, { state: snaps[0].state });
       return;
+    }
+
+    if (req.url === "/api/save-room-items") {
+      const { projectId, roomKey, listKey, items } = body;
+      if (!projectId || !roomKey || !listKey || !Array.isArray(items)) { sendJson(res, 400, { error: "projectId, roomKey, listKey et items requis." }); return; }
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      try {
+        const now = new Date().toISOString();
+        const eid = encodeURIComponent(projectId);
+        if (items.length) {
+          const rows = items.map((item, i) => ({
+            id: item.id, project_id: projectId, room_key: roomKey, list_key: listKey,
+            text: item.text || "", done: item.done || false,
+            url: item.url || null, image: item.image || null, preview_title: item.previewTitle || null,
+            position: i, updated_at: now,
+          }));
+          const uRes = await fetch(`${SUPABASE_URL}/rest/v1/room_items`, {
+            method: "POST",
+            headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+            body: JSON.stringify(rows),
+          });
+          if (!uRes.ok) { sendJson(res, 500, { error: await uRes.text() }); return; }
+        }
+        const ids = items.map(i => i.id);
+        const baseQ = `${SUPABASE_URL}/rest/v1/room_items?project_id=eq.${eid}&room_key=eq.${encodeURIComponent(roomKey)}&list_key=eq.${encodeURIComponent(listKey)}`;
+        const delQ = ids.length ? `${baseQ}&id=not.in.(${ids.join(",")})` : baseQ;
+        await fetch(delQ, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
+        sendJson(res, 200, { ok: true }); return;
+      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
+    }
+
+    if (req.url === "/api/save-chat-message") {
+      const { projectId, roomKey, message } = body;
+      if (!projectId || !roomKey || !message?.id) { sendJson(res, 400, { error: "projectId, roomKey et message requis." }); return; }
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, {
+          method: "POST",
+          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+          body: JSON.stringify({
+            id: message.id, project_id: projectId, room_key: roomKey,
+            role: message.role, content: message.content || "",
+            image_prompt: message.imagePrompt || null, error: message.error || false,
+            created_at: message.createdAt || new Date().toISOString(),
+          }),
+        });
+        const cRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${encodeURIComponent(projectId)}&room_key=eq.${encodeURIComponent(roomKey)}&select=id,created_at&order=created_at.asc`,
+          { headers: getSupabaseHeaders(req, true) }
+        );
+        const allMsgs = await cRes.json();
+        if (allMsgs.length > 50) {
+          const toDelete = allMsgs.slice(0, allMsgs.length - 50).map(m => m.id);
+          await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?id=in.(${toDelete.join(",")})`, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
+        }
+        sendJson(res, 200, { ok: true }); return;
+      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
+    }
+
+    if (req.url === "/api/save-room-note") {
+      const { projectId, roomKey, content } = body;
+      if (!projectId || !roomKey) { sendJson(res, 400, { error: "projectId et roomKey requis." }); return; }
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/room_notes`, {
+          method: "POST",
+          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+          body: JSON.stringify({ project_id: projectId, room_key: roomKey, content: content || "", updated_at: new Date().toISOString() }),
+        });
+        sendJson(res, 200, { ok: true }); return;
+      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
+    }
+
+    if (req.url === "/api/save-room-document") {
+      const user = await getAuthUser(req);
+      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      if (req.method === "DELETE") {
+        const { projectId, documentId } = body;
+        if (!projectId || !documentId) { sendJson(res, 400, { error: "projectId et documentId requis." }); return; }
+        try {
+          await fetch(`${SUPABASE_URL}/rest/v1/room_documents?id=eq.${encodeURIComponent(documentId)}&project_id=eq.${encodeURIComponent(projectId)}`, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
+          sendJson(res, 200, { ok: true }); return;
+        } catch (err) { sendJson(res, 500, { error: err.message }); return; }
+      }
+      const { projectId, roomKey, document: doc } = body;
+      if (!projectId || !roomKey || !doc?.id || !doc?.url || !doc?.name) { sendJson(res, 400, { error: "projectId, roomKey et document requis." }); return; }
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/room_documents`, {
+          method: "POST",
+          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
+          body: JSON.stringify({ id: doc.id, project_id: projectId, room_key: roomKey, name: doc.name, url: doc.url, type: doc.type || null, size: doc.size || null, uploaded_at: doc.uploadedAt || new Date().toISOString() }),
+        });
+        sendJson(res, 200, { ok: true }); return;
+      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
     }
 
     if (req.url === "/api/upload-image") {
