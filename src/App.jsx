@@ -35,6 +35,7 @@ const IMAGE_ANALYSIS_STORAGE_KEY = "palette_image_analysis_v1";
 const DELETED_IMAGES_STORAGE_KEY = "palette_deleted_images_v1";
 const PLAN_EXTRA_STORAGE_KEY = "palette_plan_extra_images_v1";
 const MATERIAL_EXTRA_STORAGE_KEY = "palette_material_extra_images_v1";
+const MATERIAL_META_STORAGE_KEY = "palette_material_meta_v1";
 const CUSTOM_ROOMS_STORAGE_KEY = "palette_custom_rooms_v1";
 const HIDDEN_ROOMS_STORAGE_KEY = "palette_hidden_rooms_v1";
 const PROJECT_STATE_STORAGE_KEY = "palette_project_state_v1";
@@ -280,6 +281,28 @@ async function imageSrcToDataUrl(src) {
   if (!response.ok) throw new Error("Impossible de charger l'image source.");
   const blob = await response.blob();
   return readFileAsDataUrl(blob);
+}
+
+function normalizeImageForAi(dataUrl, maxSize = 1024) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxSize || h > maxSize) {
+        if (w >= h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Impossible de normaliser l'image."));
+    img.crossOrigin = "anonymous";
+    img.src = dataUrl;
+  });
 }
 
 function extFromDataUrl(dataUrl) {
@@ -644,7 +667,7 @@ function AddUrlButton({ onUrl }) {
               className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 bg-white text-sm shadow-sm hover:bg-red-50"
               title="Annuler"
             >
-              ✕
+              ×
             </button>
           </div>
           {error && <p className="mt-0.5 text-[10px] text-red-500">{error}</p>}
@@ -669,7 +692,7 @@ function AddUrlButton({ onUrl }) {
   );
 }
 
-function LinkPreviewCard({ preview, onClick }) {
+function LinkPreviewCard({ preview, onClick, overrideImage }) {
   const hostname = (() => {
     try {
       return new URL(preview.url).hostname.replace(/^www\./, "");
@@ -678,11 +701,13 @@ function LinkPreviewCard({ preview, onClick }) {
     }
   })();
 
+  const imageSrc = overrideImage || preview.image;
+
   return (
     <div className="relative h-full cursor-pointer" onClick={onClick}>
-      {preview.image ? (
+      {imageSrc ? (
         <img
-          src={preview.image}
+          src={imageSrc}
           alt={preview.title || ""}
           className="h-full w-full object-cover"
           loading="lazy"
@@ -781,7 +806,9 @@ function AddMaterialButton({ onFile, onLink }) {
                 onClick={() => inputRef.current?.click()}
                 className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50"
               >
-                <span>📷</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>
+                </svg>
                 <span>Image</span>
               </button>
               <button
@@ -789,7 +816,10 @@ function AddMaterialButton({ onFile, onLink }) {
                 onClick={() => setMode("link")}
                 className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50"
               >
-                <span>🔗</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
                 <span>Lien</span>
               </button>
             </div>
@@ -847,11 +877,14 @@ function LinkAction({ value, onChange }) {
         title="Ajouter un lien"
         aria-label="Ajouter un lien"
         onClick={() => setOpen((current) => !current)}
-        className={`grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-sm text-slate-950 shadow-sm backdrop-blur hover:bg-white ${
+        className={`grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 shadow-sm backdrop-blur hover:bg-white ${
           value ? "ring-2 ring-slate-900/20" : ""
         }`}
       >
-        🔗
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
       </button>
       {open ? (
         <div className="absolute right-0 top-11 z-50 w-56 rounded-md border border-black/15 bg-white p-2 shadow-xl">
@@ -951,7 +984,8 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
     setError("");
     setIsGenerating(true);
     try {
-      const image = await imageSrcToDataUrl(imageSrc);
+      const raw = await imageSrcToDataUrl(imageSrc);
+      const image = await normalizeImageForAi(raw);
       const response = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -974,9 +1008,11 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
         title="Générer une proposition IA"
         aria-label="Générer une proposition IA"
         onClick={openPanel}
-        className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base font-medium text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+        className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 shadow-sm backdrop-blur hover:bg-white"
       >
-        🪄
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+        </svg>
       </button>
       {open
         ? createPortal(
@@ -1066,7 +1102,7 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
                     Remplacer cette image
                   </button>
                   <button type="button" onClick={closePanel} className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium">
-                    Ne pas la prendre
+                    Fermer
                   </button>
                 </div>
               </div>
@@ -1498,6 +1534,121 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
   );
 }
 
+function EditMaterialModal({ cardKey, isLink, currentMeta, onSave, onClose }) {
+  const [label, setLabel] = useState(currentMeta.label || "");
+  const [uploading, setUploading] = useState(false);
+  const [customImage, setCustomImage] = useState(currentMeta.customImage || "");
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const data = await readFileAsDataUrl(file);
+      if (typeof data === "string") {
+        const url = await uploadToBlob(data, `${cardKey}-custom-${Date.now()}.${extFromDataUrl(data)}`);
+        setCustomImage(url);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = () => {
+    const meta = {};
+    if (label.trim()) meta.label = label.trim();
+    if (customImage) meta.customImage = customImage;
+    onSave(meta);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-4 text-base font-semibold">Modifier la carte</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              {isLink ? "Titre" : "Nom du matériau"}
+            </label>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={isLink ? "Titre du produit" : "Ex : Parquet chêne naturel"}
+              className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20"
+              autoFocus
+            />
+          </div>
+          {isLink && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Remplacer l'image
+              </label>
+              {customImage ? (
+                <div className="relative">
+                  <img src={customImage} alt="" className="h-32 w-full rounded-lg object-cover" />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-sm font-bold shadow"
+                    onClick={() => setCustomImage("")}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-black/20 py-3 text-sm text-slate-500 hover:bg-slate-50"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? "Chargement…" : (
+                    <span className="flex items-center gap-2">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>
+                      </svg>
+                      Ajouter une photo
+                    </span>
+                  )}
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleImageUpload(e.target.files?.[0])}
+              />
+            </div>
+          )}
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-black/15 px-4 py-2 text-sm hover:bg-slate-50"
+            onClick={onClose}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700"
+            onClick={handleSave}
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MaterialsSection({
   room,
   materialUploads,
@@ -1506,6 +1657,8 @@ function MaterialsSection({
   setMaterialLinks,
   extraMaterialImages,
   setExtraMaterialImages,
+  extraMaterialMeta,
+  setExtraMaterialMeta,
   aiContext,
   addAiInspiration,
   imageAnalysis,
@@ -1518,21 +1671,25 @@ function MaterialsSection({
     ...(materialsByRoom[room] || []).map((item, i) => ({ item, cardKey: `${room}-material-${i}`, index: i })),
     ...(extraMaterialImages[room] || []).map((entry, i) => {
       const isLink = entry && typeof entry === "object" && entry.type === "link";
+      const cardKey = `${room}-material-extra-${i}`;
+      const meta = extraMaterialMeta[cardKey] || {};
       return {
         item: {
           label: isLink ? "Lien produit" : "Ajout",
-          value: isLink ? (entry.title || entry.url) : "Matériau ajouté",
-          src: isLink ? (entry.image || "") : entry,
+          value: meta.label || (isLink ? (entry.title || entry.url) : "Matériau ajouté"),
+          src: isLink ? (meta.customImage || entry.image || "") : entry,
           linkPreview: isLink ? entry : null,
         },
-        cardKey: `${room}-material-extra-${i}`,
+        cardKey,
         index: i,
+        isExtra: true,
       };
     }),
   ]
     .filter(({ cardKey }) => !deletedImages[cardKey]);
   const [missingCards, setMissingCards] = useState({});
   const [page, setPage] = useState(0);
+  const [editingCard, setEditingCard] = useState(null);
   const pageSize = 3;
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
 
@@ -1622,7 +1779,7 @@ function MaterialsSection({
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleItems.map(({ item, cardKey, displayIndex: index }) => {
+        {visibleItems.map(({ item, cardKey, displayIndex: index, isExtra }) => {
           const isLinkPreview = !!item.linkPreview;
           const imageSrc = materialUploads[cardKey] || item.src;
           const linkValue = materialLinks[cardKey] ?? item.link ?? "";
@@ -1644,6 +1801,7 @@ function MaterialsSection({
                   <LinkPreviewCard
                     preview={item.linkPreview}
                     onClick={() => {}}
+                    overrideImage={item.src || undefined}
                   />
                 ) : (
                   <RepoImage
@@ -1678,6 +1836,17 @@ function MaterialsSection({
                       }
                     />
                   )}
+                  {isExtra && (
+                    <button
+                      type="button"
+                      title="Modifier"
+                      aria-label="Modifier"
+                      className="grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 text-base text-slate-950 shadow-sm backdrop-blur hover:bg-white"
+                      onClick={() => setEditingCard(cardKey)}
+                    >
+                      ✏
+                    </button>
+                  )}
                   <button
                     type="button"
                     title="Supprimer"
@@ -1688,6 +1857,7 @@ function MaterialsSection({
                       setMaterialUploads((prev) => removeObjectKey(prev, cardKey));
                       setMaterialLinks((prev) => removeObjectKey(prev, cardKey));
                       setImageAnalysis((prev) => removeObjectKey(prev, cardKey));
+                      setExtraMaterialMeta((prev) => removeObjectKey(prev, cardKey));
                     }}
                   >
                     ×
@@ -1723,6 +1893,22 @@ function MaterialsSection({
           );
         })}
       </div>
+      {editingCard && (() => {
+        const editEntry = items.find((e) => e.cardKey === editingCard);
+        if (!editEntry) return null;
+        return (
+          <EditMaterialModal
+            cardKey={editingCard}
+            isLink={!!editEntry.item.linkPreview}
+            currentMeta={extraMaterialMeta[editingCard] || {}}
+            onSave={(newMeta) => {
+              setExtraMaterialMeta((prev) => ({ ...prev, [editingCard]: newMeta }));
+              setEditingCard(null);
+            }}
+            onClose={() => setEditingCard(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -1857,7 +2043,8 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages })
     setGeneratingFor(imageSrc);
     setPendingPrompt(null);
     try {
-      const dataUrl = await imageSrcToDataUrl(imageSrc);
+      const raw = await imageSrcToDataUrl(imageSrc);
+      const dataUrl = await normalizeImageForAi(raw);
       const res = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2015,7 +2202,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages })
                   onClick={() => setPendingImages((prev) => prev.filter((_, j) => j !== i))}
                   className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-slate-900 text-[9px] text-white leading-none"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             ))}
@@ -2043,10 +2230,12 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages })
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
-            className="shrink-0 self-end rounded-md border border-black/15 bg-[#f9f7f3] px-3 py-2 text-sm text-slate-500 hover:bg-[#f0ebe0] disabled:opacity-40"
+            className="shrink-0 self-end rounded-md border border-black/15 bg-[#f9f7f3] px-3 py-2 text-slate-500 hover:bg-[#f0ebe0] disabled:opacity-40"
             title="Joindre des photos"
           >
-            📎
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
           </button>
           <textarea
             ref={inputRef}
@@ -2586,6 +2775,14 @@ export default function App() {
       return {};
     }
   });
+  const [extraMaterialMeta, setExtraMaterialMeta] = useState(() => {
+    try {
+      const raw = localStorage.getItem(MATERIAL_META_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
   const [aiInspirations, setAiInspirations] = useState(() => {
     try {
       const raw = localStorage.getItem(AI_INSPIRATIONS_STORAGE_KEY);
@@ -2823,6 +3020,7 @@ export default function App() {
       planLinks,
       extraPlanImages,
       extraMaterialImages,
+      extraMaterialMeta,
       aiInspirations,
       imageAnalysis,
       deletedImages,
@@ -2885,6 +3083,7 @@ export default function App() {
     if (saved.planLinks) setPlanLinks(saved.planLinks);
     if (saved.extraPlanImages) setExtraPlanImages(saved.extraPlanImages);
     if (saved.extraMaterialImages) setExtraMaterialImages(saved.extraMaterialImages);
+    if (saved.extraMaterialMeta) setExtraMaterialMeta(saved.extraMaterialMeta);
     if (saved.aiInspirations) setAiInspirations(saved.aiInspirations);
     if (saved.imageAnalysis) setImageAnalysis(saved.imageAnalysis);
     if (saved.deletedImages) setDeletedImages(saved.deletedImages);
@@ -2943,7 +3142,7 @@ export default function App() {
   }, [ // eslint-disable-line react-hooks/exhaustive-deps
     projectId, room, globalAccent, warmth, customRooms, hiddenRooms,
     uploadedImages, inspirationLinks, materialUploads, materialLinks,
-    planUploads, planLinks, extraPlanImages, extraMaterialImages,
+    planUploads, planLinks, extraPlanImages, extraMaterialImages, extraMaterialMeta,
     aiInspirations, imageAnalysis, deletedImages,
     roomNuances, roomNotes, roomLists, roomDocuments, roomOrder,
   ]);
@@ -2985,6 +3184,7 @@ export default function App() {
         if (saved.planLinks) setPlanLinks(saved.planLinks);
         if (saved.extraPlanImages) setExtraPlanImages(prev => Object.keys(prev).length ? { ...saved.extraPlanImages, ...prev } : saved.extraPlanImages);
         if (saved.extraMaterialImages) setExtraMaterialImages(prev => Object.keys(prev).length ? { ...saved.extraMaterialImages, ...prev } : saved.extraMaterialImages);
+        if (saved.extraMaterialMeta) setExtraMaterialMeta(prev => Object.keys(prev).length ? { ...saved.extraMaterialMeta, ...prev } : saved.extraMaterialMeta);
         if (saved.aiInspirations) setAiInspirations(prev => Object.keys(prev).length ? { ...saved.aiInspirations, ...prev } : saved.aiInspirations);
         if (saved.imageAnalysis) setImageAnalysis(prev => Object.keys(prev).length ? { ...saved.imageAnalysis, ...prev } : saved.imageAnalysis);
         if (saved.deletedImages) setDeletedImages(saved.deletedImages);
@@ -3055,6 +3255,10 @@ export default function App() {
   useEffect(() => {
     safelyStore(MATERIAL_EXTRA_STORAGE_KEY, extraMaterialImages);
   }, [extraMaterialImages]);
+
+  useEffect(() => {
+    safelyStore(MATERIAL_META_STORAGE_KEY, extraMaterialMeta);
+  }, [extraMaterialMeta]);
 
   useEffect(() => {
     if (!aiInspirationsLoaded) return;
@@ -3602,6 +3806,8 @@ export default function App() {
                 setMaterialLinks={setMaterialLinks}
                 extraMaterialImages={extraMaterialImages}
                 setExtraMaterialImages={setExtraMaterialImages}
+                extraMaterialMeta={extraMaterialMeta}
+                setExtraMaterialMeta={setExtraMaterialMeta}
                 aiContext={aiContext}
                 addAiInspiration={addAiInspiration}
                 imageAnalysis={imageAnalysis}
