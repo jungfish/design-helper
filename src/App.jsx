@@ -4084,46 +4084,46 @@ export default function App() {
 
   const saveRoomNoteToServer = (pid, roomKey, content) => {
     if (!pid) return;
-    authedFetch("/api/save-room-note", {
+    authedFetch("/api/save-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: pid, roomKey, content }),
+      body: JSON.stringify({ action: "note", projectId: pid, roomKey, content }),
     }).catch(() => {});
   };
 
   const saveRoomDocumentToServer = (pid, roomKey, doc) => {
     if (!pid) return;
-    authedFetch("/api/save-room-document", {
+    authedFetch("/api/save-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: pid, roomKey, document: doc }),
+      body: JSON.stringify({ action: "document", projectId: pid, roomKey, document: doc }),
     }).catch(() => {});
   };
 
   const deleteRoomDocumentFromServer = (pid, documentId) => {
     if (!pid) return;
-    authedFetch("/api/save-room-document", {
+    authedFetch("/api/save-room", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: pid, documentId }),
+      body: JSON.stringify({ action: "document", projectId: pid, documentId }),
     }).catch(() => {});
   };
 
   const saveChatMessageToServer = (pid, roomKey, message) => {
     if (!pid) return;
-    authedFetch("/api/save-chat-message", {
+    authedFetch("/api/save-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: pid, roomKey, message }),
+      body: JSON.stringify({ action: "chat-message", projectId: pid, roomKey, message }),
     }).catch(() => {});
   };
 
   const saveRoomItemsToServer = (pid, roomKey, listKey, items) => {
     if (!pid) return;
-    authedFetch("/api/save-room-items", {
+    authedFetch("/api/save-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: pid, roomKey, listKey, items }),
+      body: JSON.stringify({ action: "items", projectId: pid, roomKey, listKey, items }),
     }).catch(() => {});
   };
 

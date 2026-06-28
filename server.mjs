@@ -238,30 +238,11 @@ createServer(async (req, res) => {
       return;
     }
 
-    if (req.url.startsWith("/api/load-chat-history")) {
-      const urlObj = new URL(req.url, "http://localhost");
-      const projectId = urlObj.searchParams.get("projectId");
-      const roomKey = urlObj.searchParams.get("roomKey");
-      if (!projectId || !roomKey) { sendJson(res, 400, { error: "projectId et roomKey requis." }); return; }
-      const user = await getAuthUser(req);
-      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
-      const SUPABASE_URL = process.env.SUPABASE_URL;
-      try {
-        const sbRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${encodeURIComponent(projectId)}&room_key=eq.${encodeURIComponent(roomKey)}&select=id,role,content,image_prompt,error,created_at&order=created_at.asc&limit=50`,
-          { headers: getSupabaseHeaders(req, true) }
-        );
-        const msgs = await sbRes.json();
-        sendJson(res, 200, { messages: (msgs || []).map(m => ({ id: m.id, role: m.role, content: m.content, imagePrompt: m.image_prompt || undefined, error: m.error || undefined })) });
-      } catch (err) { sendJson(res, 500, { error: err.message }); }
-      return;
-    }
-
     sendJson(res, 404, { error: "Route inconnue." });
     return;
   }
 
-  const POST_ROUTES = ["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat", "/api/save-project", "/api/join-project", "/api/restore-snapshot", "/api/save-room-items", "/api/save-chat-message", "/api/save-room-note", "/api/save-room-document"];
+  const POST_ROUTES = ["/api/generate-image", "/api/analyze-image", "/api/upload-image", "/api/chat", "/api/save-project", "/api/join-project", "/api/restore-snapshot", "/api/save-room"];
   if ((req.method !== "POST" && req.method !== "DELETE") || !POST_ROUTES.includes(req.url)) {
     sendJson(res, 404, { error: "Route inconnue." });
     return;
@@ -385,104 +366,57 @@ createServer(async (req, res) => {
       return;
     }
 
-    if (req.url === "/api/save-room-items") {
-      const { projectId, roomKey, listKey, items } = body;
-      if (!projectId || !roomKey || !listKey || !Array.isArray(items)) { sendJson(res, 400, { error: "projectId, roomKey, listKey et items requis." }); return; }
+    if (req.url === "/api/save-room") {
+      const { action, projectId } = body;
+      if (!action || !projectId) { sendJson(res, 400, { error: "action et projectId requis." }); return; }
       const user = await getAuthUser(req);
       if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
       const SUPABASE_URL = process.env.SUPABASE_URL;
       try {
-        const now = new Date().toISOString();
-        const eid = encodeURIComponent(projectId);
-        if (items.length) {
-          const rows = items.map((item, i) => ({
-            id: item.id, project_id: projectId, room_key: roomKey, list_key: listKey,
-            text: item.text || "", done: item.done || false,
-            url: item.url || null, image: item.image || null, preview_title: item.previewTitle || null,
-            position: i, updated_at: now,
-          }));
-          const uRes = await fetch(`${SUPABASE_URL}/rest/v1/room_items`, {
-            method: "POST",
-            headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
-            body: JSON.stringify(rows),
-          });
-          if (!uRes.ok) { sendJson(res, 500, { error: await uRes.text() }); return; }
+        if (action === "items" && req.method === "POST") {
+          const { roomKey, listKey, items } = body;
+          if (!roomKey || !listKey || !Array.isArray(items)) { sendJson(res, 400, { error: "roomKey, listKey et items requis." }); return; }
+          const now = new Date().toISOString();
+          const eid = encodeURIComponent(projectId);
+          if (items.length) {
+            const rows = items.map((item, i) => ({ id: item.id, project_id: projectId, room_key: roomKey, list_key: listKey, text: item.text || "", done: item.done || false, url: item.url || null, image: item.image || null, preview_title: item.previewTitle || null, position: i, updated_at: now }));
+            const uRes = await fetch(`${SUPABASE_URL}/rest/v1/room_items`, { method: "POST", headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" }, body: JSON.stringify(rows) });
+            if (!uRes.ok) { sendJson(res, 500, { error: await uRes.text() }); return; }
+          }
+          const ids = items.map(i => i.id);
+          const baseQ = `${SUPABASE_URL}/rest/v1/room_items?project_id=eq.${eid}&room_key=eq.${encodeURIComponent(roomKey)}&list_key=eq.${encodeURIComponent(listKey)}`;
+          const delQ = ids.length ? `${baseQ}&id=not.in.(${ids.join(",")})` : baseQ;
+          await fetch(delQ, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
+          sendJson(res, 200, { ok: true }); return;
         }
-        const ids = items.map(i => i.id);
-        const baseQ = `${SUPABASE_URL}/rest/v1/room_items?project_id=eq.${eid}&room_key=eq.${encodeURIComponent(roomKey)}&list_key=eq.${encodeURIComponent(listKey)}`;
-        const delQ = ids.length ? `${baseQ}&id=not.in.(${ids.join(",")})` : baseQ;
-        await fetch(delQ, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
-        sendJson(res, 200, { ok: true }); return;
-      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
-    }
-
-    if (req.url === "/api/save-chat-message") {
-      const { projectId, roomKey, message } = body;
-      if (!projectId || !roomKey || !message?.id) { sendJson(res, 400, { error: "projectId, roomKey et message requis." }); return; }
-      const user = await getAuthUser(req);
-      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
-      const SUPABASE_URL = process.env.SUPABASE_URL;
-      try {
-        await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, {
-          method: "POST",
-          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
-          body: JSON.stringify({
-            id: message.id, project_id: projectId, room_key: roomKey,
-            role: message.role, content: message.content || "",
-            image_prompt: message.imagePrompt || null, error: message.error || false,
-            created_at: message.createdAt || new Date().toISOString(),
-          }),
-        });
-        const cRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${encodeURIComponent(projectId)}&room_key=eq.${encodeURIComponent(roomKey)}&select=id,created_at&order=created_at.asc`,
-          { headers: getSupabaseHeaders(req, true) }
-        );
-        const allMsgs = await cRes.json();
-        if (allMsgs.length > 50) {
-          const toDelete = allMsgs.slice(0, allMsgs.length - 50).map(m => m.id);
-          await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?id=in.(${toDelete.join(",")})`, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
+        if (action === "chat-message" && req.method === "POST") {
+          const { roomKey, message } = body;
+          if (!roomKey || !message?.id) { sendJson(res, 400, { error: "roomKey et message requis." }); return; }
+          await fetch(`${SUPABASE_URL}/rest/v1/chat_messages`, { method: "POST", headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" }, body: JSON.stringify({ id: message.id, project_id: projectId, room_key: roomKey, role: message.role, content: message.content || "", image_prompt: message.imagePrompt || null, error: message.error || false }) });
+          const cRes = await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?project_id=eq.${encodeURIComponent(projectId)}&room_key=eq.${encodeURIComponent(roomKey)}&select=id,created_at&order=created_at.asc`, { headers: getSupabaseHeaders(req, true) });
+          const allMsgs = await cRes.json();
+          if (allMsgs.length > 50) { const toDelete = allMsgs.slice(0, allMsgs.length - 50).map(m => m.id); await fetch(`${SUPABASE_URL}/rest/v1/chat_messages?id=in.(${toDelete.join(",")})`, { method: "DELETE", headers: getSupabaseHeaders(req, true) }); }
+          sendJson(res, 200, { ok: true }); return;
         }
-        sendJson(res, 200, { ok: true }); return;
-      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
-    }
-
-    if (req.url === "/api/save-room-note") {
-      const { projectId, roomKey, content } = body;
-      if (!projectId || !roomKey) { sendJson(res, 400, { error: "projectId et roomKey requis." }); return; }
-      const user = await getAuthUser(req);
-      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
-      const SUPABASE_URL = process.env.SUPABASE_URL;
-      try {
-        await fetch(`${SUPABASE_URL}/rest/v1/room_notes`, {
-          method: "POST",
-          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
-          body: JSON.stringify({ project_id: projectId, room_key: roomKey, content: content || "", updated_at: new Date().toISOString() }),
-        });
-        sendJson(res, 200, { ok: true }); return;
-      } catch (err) { sendJson(res, 500, { error: err.message }); return; }
-    }
-
-    if (req.url === "/api/save-room-document") {
-      const user = await getAuthUser(req);
-      if (!user) { sendJson(res, 401, { error: "Authentification requise." }); return; }
-      const SUPABASE_URL = process.env.SUPABASE_URL;
-      if (req.method === "DELETE") {
-        const { projectId, documentId } = body;
-        if (!projectId || !documentId) { sendJson(res, 400, { error: "projectId et documentId requis." }); return; }
-        try {
+        if (action === "note" && req.method === "POST") {
+          const { roomKey, content } = body;
+          if (!roomKey) { sendJson(res, 400, { error: "roomKey requis." }); return; }
+          await fetch(`${SUPABASE_URL}/rest/v1/room_notes`, { method: "POST", headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" }, body: JSON.stringify({ project_id: projectId, room_key: roomKey, content: content || "", updated_at: new Date().toISOString() }) });
+          sendJson(res, 200, { ok: true }); return;
+        }
+        if (action === "document" && req.method === "DELETE") {
+          const { documentId } = body;
+          if (!documentId) { sendJson(res, 400, { error: "documentId requis." }); return; }
           await fetch(`${SUPABASE_URL}/rest/v1/room_documents?id=eq.${encodeURIComponent(documentId)}&project_id=eq.${encodeURIComponent(projectId)}`, { method: "DELETE", headers: getSupabaseHeaders(req, true) });
           sendJson(res, 200, { ok: true }); return;
-        } catch (err) { sendJson(res, 500, { error: err.message }); return; }
-      }
-      const { projectId, roomKey, document: doc } = body;
-      if (!projectId || !roomKey || !doc?.id || !doc?.url || !doc?.name) { sendJson(res, 400, { error: "projectId, roomKey et document requis." }); return; }
-      try {
-        await fetch(`${SUPABASE_URL}/rest/v1/room_documents`, {
-          method: "POST",
-          headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" },
-          body: JSON.stringify({ id: doc.id, project_id: projectId, room_key: roomKey, name: doc.name, url: doc.url, type: doc.type || null, size: doc.size || null, uploaded_at: doc.uploadedAt || new Date().toISOString() }),
-        });
-        sendJson(res, 200, { ok: true }); return;
+        }
+        if (action === "document" && req.method === "POST") {
+          const { roomKey, document: doc } = body;
+          if (!roomKey || !doc?.id || !doc?.url || !doc?.name) { sendJson(res, 400, { error: "roomKey et document requis." }); return; }
+          await fetch(`${SUPABASE_URL}/rest/v1/room_documents`, { method: "POST", headers: { ...getSupabaseHeaders(req, true), "Prefer": "resolution=merge-duplicates" }, body: JSON.stringify({ id: doc.id, project_id: projectId, room_key: roomKey, name: doc.name, url: doc.url, type: doc.type || null, size: doc.size || null, uploaded_at: doc.uploadedAt || new Date().toISOString() }) });
+          sendJson(res, 200, { ok: true }); return;
+        }
+        sendJson(res, 400, { error: "action non reconnue." }); return;
       } catch (err) { sendJson(res, 500, { error: err.message }); return; }
     }
 
