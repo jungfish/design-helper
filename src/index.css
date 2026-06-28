@@ -47,6 +47,11 @@ label {
   line-height: 16px;
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 @layer components {
   .type-h1 {
     @apply font-display text-[24px] font-semibold leading-[28px] tracking-normal text-slate-900 md:text-[32px] md:leading-[40px];

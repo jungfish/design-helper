@@ -1068,6 +1068,21 @@ function AiImageEditor({ imageSrc, imageKind, imageTitle, aiContext, imageMetada
                     <div className="mb-2 text-sm font-medium text-slate-700">Proposition IA</div>
                     {generatedImage ? (
                       <img src={generatedImage} alt="Proposition IA" className="h-64 w-full rounded-lg border border-black/10 object-cover md:h-[420px]" />
+                    ) : isGenerating ? (
+                      <div className="relative grid h-64 place-items-center overflow-hidden rounded-lg border border-black/10 bg-[#f9f7f3] md:h-[420px]">
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)",
+                            backgroundSize: "200% 100%",
+                            animation: "shimmer 1.6s ease-in-out infinite",
+                          }}
+                        />
+                        <div className="relative flex flex-col items-center gap-3 text-slate-500">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                          <span className="text-sm">Génération en cours…</span>
+                        </div>
+                      </div>
                     ) : (
                       <div className="grid h-64 place-items-center rounded-lg border border-dashed border-black/15 bg-[#f9f7f3] p-4 text-center text-sm text-slate-500 md:h-[420px]">
                         La proposition apparaîtra ici.
