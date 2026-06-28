@@ -1579,22 +1579,28 @@ function MaterialsSection({
 }
 
 function renderMessageContent(content) {
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  const tokenRegex = /\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
   const lines = content.split('\n');
   return lines.map((line, lineIdx) => {
     const parts = [];
     let lastIndex = 0;
     let match;
-    linkRegex.lastIndex = 0;
-    while ((match = linkRegex.exec(line)) !== null) {
+    tokenRegex.lastIndex = 0;
+    while ((match = tokenRegex.exec(line)) !== null) {
       if (match.index > lastIndex) parts.push(line.slice(lastIndex, match.index));
-      parts.push(
-        <a key={match.index} href={match[2]} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded-md bg-white border border-black/15 px-2 py-0.5 text-xs font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors break-all">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-3 shrink-0 opacity-60"><path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z"/><path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z"/></svg>
-          {match[1]}
-        </a>
-      );
+      if (match[1] !== undefined) {
+        parts.push(<strong key={match.index}>{match[1]}</strong>);
+      } else if (match[2] !== undefined) {
+        parts.push(<em key={match.index}>{match[2]}</em>);
+      } else {
+        parts.push(
+          <a key={match.index} href={match[4]} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md bg-white border border-black/15 px-2 py-0.5 text-xs font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-3 shrink-0 opacity-60"><path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z"/><path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z"/></svg>
+            {match[3]}
+          </a>
+        );
+      }
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < line.length) parts.push(line.slice(lastIndex));
@@ -2768,7 +2774,8 @@ export default function App() {
           const remoteState = payload.new?.state;
           if (!remoteState) return;
           isApplyingRemoteUpdate.current = true;
-          hydrateState(remoteState);
+          const { room: _ignoredRoom, ...remoteContent } = remoteState;
+          hydrateState(remoteContent);
           setTimeout(() => { isApplyingRemoteUpdate.current = false; }, 200);
         }
       )
