@@ -42,6 +42,7 @@ export default async function handler(req, res) {
       access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
+      cacheControlMaxAge: 0,
     });
     sendJson(res, 200, { id: projectId });
   } catch (err) {
