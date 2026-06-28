@@ -1245,7 +1245,7 @@ function InstagramModal({ item, onClose }) {
 
   const isReel = item.type === "reel";
   const width = isReel ? 340 : 400;
-  const height = isReel ? 600 : 480;
+  const visibleHeight = isReel ? 544 : 424;
 
   return createPortal(
     <div
@@ -1263,24 +1263,32 @@ function InstagramModal({ item, onClose }) {
         >
           ×
         </button>
-        <iframe
-          src={item.embedUrl}
-          width={width}
-          height={height}
-          frameBorder="0"
-          scrolling="no"
-          allowTransparency={true}
-          className="rounded-2xl shadow-2xl"
-          title={`Instagram ${item.type}`}
-        />
-        <div className="mt-2 text-center">
+        <div
+          className="rounded-2xl shadow-2xl overflow-hidden"
+          style={{ width, height: visibleHeight }}
+        >
+          <iframe
+            src={item.embedUrl}
+            width={width}
+            height={visibleHeight + 56}
+            frameBorder="0"
+            scrolling="no"
+            allowTransparency={true}
+            style={{ marginTop: "-56px", display: "block" }}
+            title={`Instagram ${item.type}`}
+          />
+        </div>
+        <div className="mt-3 flex items-center justify-center">
           <a
             href={item.originalUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-white/50 hover:text-white/80"
+            className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white/70 backdrop-blur hover:bg-white/20 hover:text-white"
           >
-            Ouvrir sur Instagram ↗
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+            </svg>
+            Voir sur Instagram ↗
           </a>
         </div>
       </div>
@@ -1728,9 +1736,26 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
                 {hasThumbnail ? (
                   <img src={item.thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400" />
+                  <iframe
+                    src={item.embedUrl}
+                    style={{
+                      position: "absolute",
+                      top: "-56px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "540px",
+                      height: "756px",
+                      border: "none",
+                      pointerEvents: "none",
+                    }}
+                    scrolling="no"
+                    allowTransparency={true}
+                    title="Instagram preview"
+                  />
                 )}
-                <div className={`absolute inset-0 flex flex-col items-end justify-end p-2.5 ${hasThumbnail ? "bg-gradient-to-t from-black/60 via-transparent to-transparent" : ""}`}>
+                {/* Click capture overlay + gradient for badges */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                <div className="absolute inset-0 flex flex-col items-end justify-end p-2.5">
                   <div className="flex items-center gap-1.5">
                     <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white backdrop-blur-sm">
                       {isReel ? "Reel" : "Carrousel"}
@@ -3469,12 +3494,13 @@ function LoginScreen({ onSignIn }) {
 // ─── Écran rejoindre ou créer un appartement ─────────────────────────────────
 
 function JoinOrCreateScreen({ user, onJoin, onCreateNew, signOut }) {
-  const [code, setCode] = useState("");
+  const inviteParam = new URLSearchParams(window.location.search).get("invite") || "";
+  const [code, setCode] = useState(inviteParam);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleJoin = async () => {
-    const cleaned = code.trim().toLowerCase();
+  const handleJoin = async (overrideCode) => {
+    const cleaned = (overrideCode ?? code).trim().toLowerCase();
     if (!cleaned) return;
     setLoading(true);
     setError("");
@@ -3485,6 +3511,10 @@ function JoinOrCreateScreen({ user, onJoin, onCreateNew, signOut }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (inviteParam) handleJoin(inviteParam);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#FAF6F0] flex flex-col items-center justify-center p-6">
@@ -4638,11 +4668,16 @@ export default function App() {
                     </div>
                     {isOwner && inviteCode && (
                       <button
-                        onClick={() => { navigator.clipboard.writeText(inviteCode); setCopyInviteSuccess(true); setTimeout(() => setCopyInviteSuccess(false), 2000); }}
+                        onClick={() => {
+                          const inviteUrl = `${window.location.origin}/?invite=${inviteCode}`;
+                          navigator.clipboard.writeText(inviteUrl);
+                          setCopyInviteSuccess(true);
+                          setTimeout(() => setCopyInviteSuccess(false), 2000);
+                        }}
                         className="w-full px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
                       >
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Code d'invitation</p>
-                        <p className="text-sm font-mono text-slate-900 mt-0.5">{copyInviteSuccess ? "✓ Copié !" : inviteCode}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Lien d'invitation</p>
+                        <p className="text-sm text-slate-700 mt-0.5">{copyInviteSuccess ? "✓ Lien copié !" : "Copier le lien →"}</p>
                       </button>
                     )}
                     <button onClick={signOut} className="w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-black/8">
