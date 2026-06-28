@@ -34,6 +34,7 @@ const HIDDEN_ROOMS_STORAGE_KEY = "palette_hidden_rooms_v1";
 const PROJECT_STATE_STORAGE_KEY = "palette_project_state_v1";
 const LAST_SAVE_STORAGE_KEY = "palette_last_save_v1";
 const ROOM_LISTS_STORAGE_KEY = "palette_room_lists_v1";
+const ROOM_DOCUMENTS_STORAGE_KEY = "palette_room_documents_v1";
 const ROOM_ORDER_STORAGE_KEY = "palette_room_order_v1";
 const PROJECT_ID_STORAGE_KEY = "palette_project_id_v1";
 const IMAGE_DB_NAME = "palette-appartement-images";
@@ -575,6 +576,7 @@ function AddMaterialButton({ onFile, onLink }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState(null);
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
@@ -597,10 +599,12 @@ function AddMaterialButton({ onFile, onLink }) {
     setIsLoading(true);
     try {
       const preview = await fetchLinkPreview(linkUrl.trim());
+      if (linkLabel.trim()) preview.title = linkLabel.trim();
       onLink(preview);
       setOpen(false);
       setMode(null);
       setLinkUrl("");
+      setLinkLabel("");
     } finally {
       setIsLoading(false);
     }
@@ -630,6 +634,7 @@ function AddMaterialButton({ onFile, onLink }) {
           setOpen((o) => !o);
           setMode(null);
           setLinkUrl("");
+          setLinkLabel("");
         }}
         className="grid h-11 w-11 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
       >
@@ -659,8 +664,16 @@ function AddMaterialButton({ onFile, onLink }) {
           ) : (
             <div className="flex flex-col gap-2">
               <input
-                type="url"
+                type="text"
                 autoFocus
+                placeholder="Nom (optionnel)…"
+                value={linkLabel}
+                onChange={(e) => setLinkLabel(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLinkSubmit()}
+                className="w-full rounded border border-black/15 bg-white p-2 text-xs"
+              />
+              <input
+                type="url"
                 placeholder="https://..."
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
@@ -670,7 +683,7 @@ function AddMaterialButton({ onFile, onLink }) {
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setMode(null)}
+                  onClick={() => { setMode(null); setLinkLabel(""); setLinkUrl(""); }}
                   className="flex-1 rounded-lg border border-black/15 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
                 >
                   ← Retour
@@ -1960,7 +1973,14 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
   );
 }
 
-function renderItemText(text) {
+function renderItemText(text, url) {
+  if (url) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-70">
+        {text}
+      </a>
+    );
+  }
   const urlRegex = /https?:\/\/[^\s]+/g;
   const parts = [];
   let lastIndex = 0;
@@ -1978,9 +1998,127 @@ function renderItemText(text) {
   return parts.length > 0 ? parts : text;
 }
 
+function DocumentsSection({ room, roomDocuments, setRoomDocuments }) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const docs = roomDocuments[room] || [];
+
+  const handleFiles = async (files) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const dataUrl = await readFileAsDataUrl(file);
+        const ext = file.name.split(".").pop() || "bin";
+        const filename = `doc-${room}-${Date.now()}.${ext}`;
+        const url = await uploadToBlob(dataUrl, filename);
+        const doc = {
+          id: `doc-${room}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          url,
+          type: file.type,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+        };
+        setRoomDocuments((prev) => ({
+          ...prev,
+          [room]: [...(prev[room] || []), doc],
+        }));
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeDoc = (id) => {
+    setRoomDocuments((prev) => ({
+      ...prev,
+      [room]: (prev[room] || []).filter((d) => d.id !== id),
+    }));
+  };
+
+  const docIcon = (type) => {
+    if (type?.includes("pdf")) return "📄";
+    if (type?.includes("word") || type?.includes("document")) return "📝";
+    if (type?.includes("sheet") || type?.includes("excel") || type?.includes("spreadsheet")) return "📊";
+    if (type?.startsWith("image/")) return "🖼";
+    return "📎";
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return "";
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  };
+
+  return (
+    <div className="col-span-full rounded-xl border border-black/10 bg-white p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Documents</p>
+          <h3 className="type-h3">Devis & documents</h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {uploading ? "Envoi…" : "+ Document"}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+      {docs.length === 0 ? (
+        <div className="py-6 text-center text-sm text-slate-400">Aucun document pour l'instant.</div>
+      ) : (
+        <ul className="space-y-1.5">
+          {docs.map((doc) => (
+            <li key={doc.id} className="flex items-center gap-3 rounded-lg border border-black/10 bg-white px-3 py-2">
+              <span className="text-xl leading-none">{docIcon(doc.type)}</span>
+              <div className="min-w-0 flex-1">
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate text-sm font-medium text-slate-800 hover:underline"
+                >
+                  {doc.name}
+                </a>
+                <span className="text-xs text-slate-400">
+                  {formatSize(doc.size)}
+                  {doc.size && doc.uploadedAt ? " · " : ""}
+                  {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("fr-FR") : ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeDoc(doc.id)}
+                className="shrink-0 px-1 text-slate-300 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ListeSection({ room, label, roomLists, setRoomLists }) {
   const [shopInput, setShopInput] = useState("");
   const [todoInput, setTodoInput] = useState("");
+  const [linkMode, setLinkMode] = useState({ shopping: false, todos: false });
+  const [linkInput, setLinkInput] = useState({ shopping: { label: "", url: "" }, todos: { label: "", url: "" } });
 
   const list = roomLists[room] || {};
   const shopping = list.shopping || [];
@@ -2010,6 +2148,17 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
     }));
   };
 
+  const addLinkItem = (listKey) => {
+    const { label: lbl, url } = linkInput[listKey];
+    if (!lbl.trim() || !url.trim()) return;
+    const id = `${listKey}-${Date.now()}`;
+    setRoomLists((prev) => ({
+      ...prev,
+      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: lbl.trim(), url: url.trim(), done: false }] },
+    }));
+    setLinkInput((prev) => ({ ...prev, [listKey]: { label: "", url: "" } }));
+  };
+
   const renderList = (listKey, items, input, setInput, title, eyebrow, placeholder) => {
     const pending = items.filter((i) => !i.done);
     const done = items.filter((i) => i.done);
@@ -2019,23 +2168,68 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
           <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{eyebrow}</p>
           <h3 className="type-h3">{title}</h3>
         </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") addItem(listKey, input, setInput); }}
-            placeholder={placeholder}
-            className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => addItem(listKey, input, setInput)}
-            className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Ajouter
-          </button>
-        </div>
+        {linkMode[listKey] ? (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={linkInput[listKey].label}
+                onChange={(e) => setLinkInput((prev) => ({ ...prev, [listKey]: { ...prev[listKey], label: e.target.value } }))}
+                onKeyDown={(e) => { if (e.key === "Enter") addLinkItem(listKey); }}
+                placeholder="Nom du lien…"
+                className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
+              />
+              <input
+                type="url"
+                value={linkInput[listKey].url}
+                onChange={(e) => setLinkInput((prev) => ({ ...prev, [listKey]: { ...prev[listKey], url: e.target.value } }))}
+                onKeyDown={(e) => { if (e.key === "Enter") addLinkItem(listKey); }}
+                placeholder="https://…"
+                className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => addLinkItem(listKey)}
+                className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              >
+                Ajouter
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: false }))}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              ← Texte libre
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addItem(listKey, input, setInput); }}
+              placeholder={placeholder}
+              className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: true }))}
+              className="shrink-0 rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+              title="Ajouter un lien avec un nom"
+            >
+              🔗
+            </button>
+            <button
+              type="button"
+              onClick={() => addItem(listKey, input, setInput)}
+              className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Ajouter
+            </button>
+          </div>
+        )}
         {items.length === 0 ? (
           <div className="py-8 text-center text-sm text-slate-400">Aucun élément pour l'instant.</div>
         ) : (
@@ -2052,7 +2246,7 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
                 >
                   {item.done ? "✓" : ""}
                 </button>
-                <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{renderItemText(item.text)}</span>
+                <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{renderItemText(item.text, item.url)}</span>
                 <button
                   type="button"
                   onClick={() => removeItem(listKey, item.id)}
@@ -2229,6 +2423,14 @@ export default function App() {
       return {};
     }
   });
+  const [roomDocuments, setRoomDocuments] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ROOM_DOCUMENTS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
   const [roomOrder, setRoomOrder] = useState(() => {
     try {
       const raw = localStorage.getItem(ROOM_ORDER_STORAGE_KEY);
@@ -2367,6 +2569,7 @@ export default function App() {
     setRoomNuances((prev) => removeRoomData(prev, room));
     setRoomNotes((prev) => removeRoomData(prev, room));
     setRoomLists((prev) => removeRoomData(prev, room));
+    setRoomDocuments((prev) => removeRoomData(prev, room));
     setRoom(nextRoom);
     setMobileMenuOpen(false);
   };
@@ -2402,6 +2605,7 @@ export default function App() {
       roomNuances,
       roomNotes,
       roomLists,
+      roomDocuments,
       roomOrder,
     };
 
@@ -2463,6 +2667,7 @@ export default function App() {
     if (saved.roomNuances) setRoomNuances(saved.roomNuances);
     if (saved.roomNotes) setRoomNotes(saved.roomNotes);
     if (saved.roomLists) setRoomLists(saved.roomLists);
+    if (saved.roomDocuments) setRoomDocuments(saved.roomDocuments);
     if (saved.roomOrder) setRoomOrder(saved.roomOrder);
     if (saved.savedAt) setLastSavedAt(saved.savedAt);
   };
@@ -2527,6 +2732,7 @@ export default function App() {
         if (saved.roomNuances) setRoomNuances(saved.roomNuances);
         if (saved.roomNotes) setRoomNotes(saved.roomNotes);
         if (saved.roomLists) setRoomLists(saved.roomLists);
+        if (saved.roomDocuments) setRoomDocuments(prev => Object.keys(prev).length ? { ...saved.roomDocuments, ...prev } : saved.roomDocuments);
         if (saved.roomOrder) setRoomOrder(saved.roomOrder);
         if (saved.savedAt) setLastSavedAt(saved.savedAt);
       })
@@ -2609,6 +2815,10 @@ export default function App() {
   useEffect(() => {
     safelyStore(ROOM_LISTS_STORAGE_KEY, roomLists);
   }, [roomLists]);
+
+  useEffect(() => {
+    safelyStore(ROOM_DOCUMENTS_STORAGE_KEY, roomDocuments);
+  }, [roomDocuments]);
 
   useEffect(() => {
     if (roomOrder) safelyStore(ROOM_ORDER_STORAGE_KEY, roomOrder);
@@ -3120,12 +3330,19 @@ export default function App() {
             </section>
           </>
         ) : roomMode === "liste" ? (
-          <ListeSection
-            room={room}
-            label={preset.label}
-            roomLists={roomLists}
-            setRoomLists={setRoomLists}
-          />
+          <div className="space-y-6">
+            <ListeSection
+              room={room}
+              label={preset.label}
+              roomLists={roomLists}
+              setRoomLists={setRoomLists}
+            />
+            <DocumentsSection
+              room={room}
+              roomDocuments={roomDocuments}
+              setRoomDocuments={setRoomDocuments}
+            />
+          </div>
         ) : (
           <ChatPanel
             room={room}
