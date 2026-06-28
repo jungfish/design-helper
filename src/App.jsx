@@ -878,18 +878,24 @@ function RepoImage({ src, alt, onMissingChange, objectFit = "cover" }) {
 
   if (missing) {
     return (
-      <div className="grid h-full min-h-36 place-items-center bg-[#f8f5ef] p-3 text-center text-xs text-slate-500">
+      <div className="grid min-h-36 place-items-center bg-[#f8f5ef] p-3 text-center text-xs text-slate-500">
         <span>
           Image manquante: <code className="break-all">{src}</code>
         </span>
       </div>
     );
   }
+
+  const imgClass =
+    objectFit === "natural"
+      ? "block w-full h-auto"
+      : `h-full w-full ${objectFit === "contain" ? "object-contain" : "object-cover"}`;
+
   return (
     <img
       src={src}
       alt={alt}
-      className={`h-full w-full ${objectFit === "contain" ? "object-contain" : "object-cover"}`}
+      className={imgClass}
       loading="lazy"
       onLoad={() => {
         setMissing(false);
@@ -1435,11 +1441,11 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
             return (
               <div key={cardKey} className="overflow-visible rounded-xl border border-black/10 bg-white">
                 <div
-                  className="group relative h-56 sm:h-48"
+                  className="group relative overflow-hidden rounded-t-xl"
                   style={{ cursor: "zoom-in" }}
                   onClick={() => { if (onImageClick) onImageClick(imageSrc); }}
                 >
-                  <RepoImage src={imageSrc} alt={`${label} inspiration ${i + 1}`} onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
+                  <RepoImage src={imageSrc} alt={`${label} inspiration ${i + 1}`} objectFit="natural" onMissingChange={(missing) => handleMissingChange(cardKey, missing)} />
                   <div className="absolute inset-x-2 top-2 z-20 flex flex-wrap items-start justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
                     <AiImageEditor
                       imageSrc={imageSrc}
