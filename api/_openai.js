@@ -1,4 +1,5 @@
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
+const IMAGE_PERSONA = "Tu es un designer d'intérieur professionnel et créatif. ";
 const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL || "gpt-4.1-mini";
 
 function dataUrlToBlob(dataUrl) {
@@ -134,7 +135,7 @@ export async function generateImage({ image, prompt }) {
   const blob = dataUrlToBlob(image);
   const form = new FormData();
   form.append("model", IMAGE_MODEL);
-  form.append("prompt", prompt);
+  form.append("prompt", IMAGE_PERSONA + prompt);
   form.append("size", "1024x1024");
   form.append("quality", "medium");
   form.append("output_format", "webp");
