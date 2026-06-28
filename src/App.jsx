@@ -846,9 +846,12 @@ function AddMaterialButton({ onFile, onLink }) {
                 <button
                   type="button"
                   onClick={() => { setMode(null); setLinkLabel(""); setLinkUrl(""); }}
-                  className="flex-1 rounded-lg border border-black/15 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-black/15 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
                 >
-                  ← Retour
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m15 18-6-6 6-6"/>
+                  </svg>
+                  Retour
                 </button>
                 <button
                   type="button"
@@ -1864,7 +1867,7 @@ function MaterialsSection({
                   </button>
                 </div>
               </div>
-              <div className="space-y-2 p-4">
+              <div className="space-y-2 p-3">
                 <div className="text-xs uppercase tracking-wide text-slate-500">{item.label}</div>
                 <div className="text-sm font-medium line-clamp-2">{item.value}</div>
                 {isLinkPreview && item.linkPreview?.description ? (
@@ -2170,9 +2173,12 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages })
                       <button
                         type="button"
                         onClick={() => setPendingPrompt(msg.imagePrompt)}
-                        className="rounded-full border border-black/20 bg-[#fcf8d5] px-3 py-1 text-xs font-medium text-slate-700 hover:bg-[#f5efb0]"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-black/20 bg-[#fcf8d5] px-3 py-1 text-xs font-medium text-slate-700 hover:bg-[#f5efb0]"
                       >
-                        🪄 Visualiser sur une image
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                        </svg>
+                        Visualiser sur une image
                       </button>
                     )}
                   </div>
@@ -2338,8 +2344,15 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
                   >
                     {item.done ? "✓" : ""}
                   </button>
+                  {item.image && (
+                    <img
+                      src={item.image}
+                      alt={item.previewTitle || item.text}
+                      className="h-10 w-10 shrink-0 rounded-md object-cover border border-black/10"
+                    />
+                  )}
                   <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                    {renderItemText(item.text)}
+                    {renderItemText(item.text, item.url)}
                   </span>
                   <span className="shrink-0 text-[11px] text-slate-400">{item.listKey === "shopping" ? "courses" : "à faire"}</span>
                 </li>
@@ -2503,14 +2516,34 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
   const shopping = list.shopping || [];
   const todos = list.todos || [];
 
-  const addItem = (listKey, text, setter) => {
+  const addItem = async (listKey, text, setter) => {
     if (!text.trim()) return;
     const id = `${listKey}-${Date.now()}`;
+    const urlMatch = text.trim().match(/https?:\/\/[^\s]+/);
+    const url = urlMatch ? urlMatch[0] : null;
     setRoomLists((prev) => ({
       ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: text.trim(), done: false }] },
+      [room]: { ...(prev[room] || {}), [listKey]: [...((prev[room] || {})[listKey] || []), { id, text: text.trim(), url: url || undefined, done: false }] },
     }));
     setter("");
+    if (url) {
+      try {
+        const preview = await fetchLinkPreview(url);
+        if (preview.image) {
+          setRoomLists((prev) => ({
+            ...prev,
+            [room]: {
+              ...(prev[room] || {}),
+              [listKey]: ((prev[room] || {})[listKey] || []).map((item) =>
+                item.id === id ? { ...item, image: preview.image, previewTitle: preview.title } : item
+              ),
+            },
+          }));
+        }
+      } catch {
+        // pas de preview, pas grave
+      }
+    }
   };
 
   const toggleItem = (listKey, id) => {
@@ -2594,9 +2627,12 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
             <button
               type="button"
               onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: false }))}
-              className="text-xs text-slate-400 hover:text-slate-600"
+              className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
             >
-              ← Texte libre
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m15 18-6-6 6-6"/>
+              </svg>
+              Texte libre
             </button>
           </div>
         ) : (
@@ -2612,10 +2648,14 @@ function ListeSection({ room, label, roomLists, setRoomLists }) {
             <button
               type="button"
               onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: true }))}
-              className="shrink-0 rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black/15 bg-white text-slate-500 hover:bg-slate-50"
               title="Ajouter un lien avec un nom"
+              aria-label="Ajouter un lien avec un nom"
             >
-              🔗
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
             </button>
             <button
               type="button"
@@ -3325,9 +3365,11 @@ export default function App() {
             type="button"
             onClick={() => setMobileMenuOpen((current) => !current)}
             aria-label="Ouvrir la navigation des pièces"
-            className="grid h-10 w-10 place-items-center rounded-md border border-black/15 bg-white text-xl leading-none shadow-sm"
+            className="grid h-10 w-10 place-items-center rounded-md border border-black/15 bg-white shadow-sm"
           >
-            ☰
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
           </button>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{preset.label}</div>
@@ -3364,7 +3406,11 @@ export default function App() {
                   } ${draggingRoom === key ? "opacity-40" : ""}`}
                 >
                   <span className="flex items-center gap-2">
-                    <span className="text-slate-300 select-none">⠿</span>
+                    <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" className="shrink-0 opacity-30">
+                      <circle cx="3" cy="2" r="1.3"/><circle cx="7" cy="2" r="1.3"/>
+                      <circle cx="3" cy="6" r="1.3"/><circle cx="7" cy="6" r="1.3"/>
+                      <circle cx="3" cy="10" r="1.3"/><circle cx="7" cy="10" r="1.3"/>
+                    </svg>
                     {allRoomPresets[key].label}
                   </span>
                   {pending > 0 ? (
@@ -3707,7 +3753,11 @@ export default function App() {
                   onClick={() => setShow3D(true)}
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-black/15 bg-white py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[.98]"
                 >
-                  <span>🎲</span> Voir en 3D
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/>
+                  </svg>
+                  Voir en 3D
                 </button>
                 <label className="block text-sm">
                   Note de la pièce
