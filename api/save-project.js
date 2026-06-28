@@ -1,4 +1,3 @@
-import { put } from "@vercel/blob";
 import { allowCors, sendJson, parseJsonBody } from "./_openai.js";
 
 export const config = {
@@ -22,8 +21,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    sendJson(res, 500, { error: "BLOB_READ_WRITE_TOKEN manquant." });
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    sendJson(res, 500, { error: "Configuration Supabase manquante." });
     return;
   }
 
@@ -38,12 +40,22 @@ export default async function handler(req, res) {
   const projectId = id || generateId();
 
   try {
-    await put(`projects/${projectId}.json`, JSON.stringify(state), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      cacheControlMaxAge: 0,
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/projects`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({ id: projectId, state, updated_at: new Date().toISOString() }),
     });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err);
+    }
+
     sendJson(res, 200, { id: projectId });
   } catch (err) {
     sendJson(res, 500, { error: err.message || "Erreur lors de la sauvegarde." });

@@ -20,23 +20,38 @@ export default async function handler(req, res) {
     return;
   }
 
-  const storeId = (process.env.BLOB_STORE_ID || "").replace("store_", "").toLowerCase();
-  if (!storeId) {
-    sendJson(res, 500, { error: "BLOB_STORE_ID manquant." });
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    sendJson(res, 500, { error: "Configuration Supabase manquante." });
     return;
   }
 
-  const blobUrl = `https://${storeId}.public.blob.vercel-storage.com/projects/${id}.json`;
-
   try {
-    const response = await fetch(`${blobUrl}?t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(id)}&select=state`,
+      {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
     if (!response.ok) {
       sendJson(res, 404, { error: "Projet introuvable." });
       return;
     }
-    const state = await response.json();
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    sendJson(res, 200, { state });
+
+    const rows = await response.json();
+    if (!rows.length) {
+      sendJson(res, 404, { error: "Projet introuvable." });
+      return;
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    sendJson(res, 200, { state: rows[0].state });
   } catch (err) {
     sendJson(res, 500, { error: err.message || "Erreur lors du chargement." });
   }

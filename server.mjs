@@ -85,16 +85,21 @@ createServer(async (req, res) => {
         sendJson(res, 400, { error: "ID invalide." });
         return;
       }
-      const storeId = (process.env.BLOB_STORE_ID || "").replace("store_", "").toLowerCase();
-      if (!storeId) {
-        sendJson(res, 500, { error: "BLOB_STORE_ID manquant." });
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        sendJson(res, 500, { error: "Configuration Supabase manquante." });
         return;
       }
       try {
-        const blobRes = await fetch(`https://${storeId}.public.blob.vercel-storage.com/projects/${id}.json`);
-        if (!blobRes.ok) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
-        const state = await blobRes.json();
-        sendJson(res, 200, { state });
+        const sbRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(id)}&select=state`,
+          { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }
+        );
+        if (!sbRes.ok) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
+        const rows = await sbRes.json();
+        if (!rows.length) { sendJson(res, 404, { error: "Projet introuvable." }); return; }
+        sendJson(res, 200, { state: rows[0].state });
       } catch (error) {
         sendJson(res, 500, { error: error.message });
       }
@@ -120,14 +125,21 @@ createServer(async (req, res) => {
     if (req.url === "/api/save-project") {
       const { state, id } = body;
       if (!state) { sendJson(res, 400, { error: "state requis." }); return; }
-      if (!process.env.BLOB_READ_WRITE_TOKEN) { sendJson(res, 500, { error: "BLOB_READ_WRITE_TOKEN manquant." }); return; }
-      const { put } = await import("@vercel/blob");
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) { sendJson(res, 500, { error: "Configuration Supabase manquante." }); return; }
       const projectId = id || Math.random().toString(36).slice(2, 10);
-      await put(`projects/${projectId}.json`, JSON.stringify(state), {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
+      const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/projects`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates",
+        },
+        body: JSON.stringify({ id: projectId, state, updated_at: new Date().toISOString() }),
       });
+      if (!sbRes.ok) { sendJson(res, 500, { error: await sbRes.text() }); return; }
       sendJson(res, 200, { id: projectId });
       return;
     }
