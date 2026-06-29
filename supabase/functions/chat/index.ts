@@ -10,7 +10,7 @@ const SSE_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const CHAT_TOOLS = [
+const BASE_TOOLS = [
   { type: "web_search_preview" },
   {
     type: "function",
@@ -25,6 +25,10 @@ const CHAT_TOOLS = [
       strict: true,
     },
   },
+];
+
+const ROOM_TOOLS = [
+  ...BASE_TOOLS,
   {
     type: "function",
     name: "add_to_shopping_list",
@@ -66,6 +70,55 @@ const CHAT_TOOLS = [
   },
 ];
 
+function buildGeneralTools(availableRooms: { key: string; label: string }[]) {
+  const roomKeyDesc = availableRooms.map((r) => `"${r.key}" (${r.label})`).join(", ");
+  return [
+    ...BASE_TOOLS,
+    {
+      type: "function",
+      name: "add_to_shopping_list",
+      description: "Ajoute des articles à la liste de courses d'une pièce spécifique.",
+      parameters: {
+        type: "object",
+        properties: {
+          room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+          items: { type: "array", items: { type: "string" } },
+        },
+        required: ["room_key", "items"],
+        strict: true,
+      },
+    },
+    {
+      type: "function",
+      name: "add_to_todo_list",
+      description: "Ajoute des tâches à la liste de todos d'une pièce spécifique.",
+      parameters: {
+        type: "object",
+        properties: {
+          room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+          items: { type: "array", items: { type: "string" } },
+        },
+        required: ["room_key", "items"],
+        strict: true,
+      },
+    },
+    {
+      type: "function",
+      name: "save_room_note",
+      description: "Met à jour la note de design d'une pièce spécifique.",
+      parameters: {
+        type: "object",
+        properties: {
+          room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+          note: { type: "string" },
+        },
+        required: ["room_key", "note"],
+        strict: true,
+      },
+    },
+  ];
+}
+
 function buildSystemPrompt(ctx: Record<string, unknown>): string {
   return [
     "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
@@ -81,6 +134,40 @@ function buildSystemPrompt(ctx: Record<string, unknown>): string {
     (ctx.shoppingItems as string[])?.length ? `En liste de courses: ${(ctx.shoppingItems as string[]).join(", ")}` : null,
     (ctx.materialSummary as string[])?.length ? `Matériaux choisis: ${(ctx.materialSummary as string[]).join("; ")}` : null,
     ctx.allRoomsSummary ? `Autres pièces: ${ctx.allRoomsSummary}` : null,
+    "",
+    "Règles:",
+    "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
+    "- Reste dans l'univers rétro, coloré, doux — jamais d'accents rouges, pas de style minimaliste froid",
+    "- Si l'utilisateur demande des produits, des références ou des liens d'achat, utilise la recherche web pour trouver des résultats réels et inclus des URLs directes",
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
+}
+
+function buildGeneralSystemPrompt(
+  ctx: Record<string, unknown>,
+  availableRooms: { key: string; label: string; line: string; roomNote?: string; todoItems?: string[]; shoppingItems?: string[]; materialSummary?: string[] }[],
+): string {
+  const roomsDetail = availableRooms.map((r) => {
+    const parts = [`— ${r.label} (key: "${r.key}"): ${r.line || ""}`];
+    if (r.roomNote) parts.push(`  Note: ${r.roomNote}`);
+    if (r.todoItems?.length) parts.push(`  Todos: ${r.todoItems.join(", ")}`);
+    if (r.shoppingItems?.length) parts.push(`  En liste: ${r.shoppingItems.join(", ")}`);
+    if (r.materialSummary?.length) parts.push(`  Matériaux: ${r.materialSummary.join("; ")}`);
+    return parts.join("\n");
+  }).join("\n");
+
+  return [
+    "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
+    "Tu aides l'utilisateur à prendre des décisions de design pour son appartement.",
+    "",
+    ctx.generalContext ? `Goûts & contraintes de l'appartement: ${ctx.generalContext}` : null,
+    "",
+    "Mode Appartement — tu as accès à toutes les pièces et peux agir sur chacune.",
+    "Quand tu utilises un outil (add_to_shopping_list, add_to_todo_list, save_room_note), tu DOIS toujours spécifier room_key.",
+    "",
+    "Pièces disponibles:",
+    roomsDetail,
     "",
     "Règles:",
     "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
@@ -126,11 +213,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  let messages: unknown[], roomContext: Record<string, unknown>;
+  let messages: unknown[], roomContext: Record<string, unknown>, isGeneral: boolean, availableRooms: { key: string; label: string; line: string; roomNote?: string; todoItems?: string[]; shoppingItems?: string[]; materialSummary?: string[] }[];
   try {
     const body = await req.json();
     messages = body.messages;
     roomContext = body.roomContext || {};
+    isGeneral = !!body.isGeneral;
+    availableRooms = Array.isArray(body.availableRooms) ? body.availableRooms : [];
   } catch {
     return new Response(JSON.stringify({ error: "JSON invalide." }), {
       status: 400,
@@ -144,6 +233,12 @@ Deno.serve(async (req) => {
       headers: { ...SSE_HEADERS, "Content-Type": "application/json" },
     });
   }
+
+  const useGeneralMode = isGeneral && availableRooms.length > 0;
+  const chatTools = useGeneralMode ? buildGeneralTools(availableRooms) : ROOM_TOOLS;
+  const systemPrompt = useGeneralMode
+    ? buildGeneralSystemPrompt(roomContext, availableRooms)
+    : buildSystemPrompt(roomContext);
 
   const enc = new TextEncoder();
   const stream = new ReadableStream({
@@ -162,8 +257,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: CHAT_MODEL,
             stream: true,
-            tools: CHAT_TOOLS,
-            instructions: buildSystemPrompt(roomContext),
+            tools: chatTools,
+            instructions: systemPrompt,
             input: historyToSend.map((m) => {
               const imgList = Array.isArray(m.images) && m.images.length ? m.images : m.image ? [m.image] : [];
               if (m.role === "user" && imgList.length > 0) {
