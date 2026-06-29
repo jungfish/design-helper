@@ -3411,6 +3411,22 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
           setRoomNotes((prev) => ({ ...prev, [targetRoom]: call.args.note }));
           if (saveNoteFn && projectId) saveNoteFn(projectId, targetRoom, call.args.note);
           notices.push(`Note mise à jour${roomSuffix}.`);
+        } else if (call.name === "update_item" && setRoomLists) {
+          const { item_id, list_type, due_date, assignee } = call.args;
+          const listKey = list_type === "shopping" ? "shopping" : "todos";
+          setRoomLists((prev) => {
+            const currentItems = (prev[targetRoom] || {})[listKey] || [];
+            const patch = {};
+            if ("due_date" in call.args) patch.dueDate = due_date || undefined;
+            if ("assignee" in call.args) patch.assignee = assignee || undefined;
+            const newItems = currentItems.map((item) => item.id === item_id ? { ...item, ...patch } : item);
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, targetRoom, listKey, newItems);
+            return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), [listKey]: newItems } };
+          });
+          const parts = [];
+          if ("due_date" in call.args) parts.push(due_date ? `échéance ${due_date}` : "échéance supprimée");
+          if ("assignee" in call.args) parts.push(assignee ? `assigné à ${assignee}` : "responsable retiré");
+          if (parts.length) notices.push(`Item mis à jour (${parts.join(", ")})${roomSuffix}.`);
         }
       }
       if (notices.length) {
@@ -5596,17 +5612,17 @@ export default function App() {
       label: p.label,
       line: p.line || "",
       roomNote: roomNotes[key] || "",
-      todoItems: (roomLists[key]?.todos || []).filter((i) => !i.done).slice(0, 5).map((i) => i.text),
-      shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => i.text),
+      todoItems: (roomLists[key]?.todos || []).filter((i) => !i.done).slice(0, 5).map((i) => ({ id: i.id, text: i.text })),
+      shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => ({ id: i.id, text: i.text })),
       materialSummary: (materialsByRoom[key] || []).map((m) => `${m.label}: ${m.value}`).slice(0, 3),
     };
   }).filter(Boolean) : [];
 
   const aiShoppingItems = (roomLists[room]?.shopping || [])
-    .filter((i) => !i.done).slice(0, 5).map((i) => i.text);
+    .filter((i) => !i.done).slice(0, 5).map((i) => ({ id: i.id, text: i.text }));
 
   const aiTodoItems = (roomLists[room]?.todos || [])
-    .filter((i) => !i.done).slice(0, 8).map((i) => i.text);
+    .filter((i) => !i.done).slice(0, 8).map((i) => ({ id: i.id, text: i.text }));
 
   const aiMaterialSummary = [
     ...(materialsByRoom[room] || []).map((m) => `${m.label}: ${m.value}`),
@@ -5634,6 +5650,7 @@ export default function App() {
     shoppingItems: aiShoppingItems,
     todoItems: aiTodoItems,
     materialSummary: aiMaterialSummary,
+    persons: [...(projectMembers || []), ...(persons || [])].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).map(p => p.name),
   };
 
   const updateRoomNuance = (key, value) => {
