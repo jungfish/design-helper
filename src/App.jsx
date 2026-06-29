@@ -3881,12 +3881,29 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
   );
 }
 
-function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoomLists, projectId, saveRoomItemsFn }) {
+function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoomLists, projectId, saveRoomItemsFn, itemReactions = {}, currentUserId = null, onToggleReaction = null, persons = [], projectMembers = [], setPersons = null, savePersonsFn = null }) {
   const [filter, setFilter] = useState("all");
   const [hideDone, setHideDone] = useState(true);
   const [groupBy, setGroupBy] = useState("room"); // "room" | "week"
   const [roomInputs, setRoomInputs] = useState({}); // { [roomKey]: string }
   const [roomInputOpen, setRoomInputOpen] = useState({}); // { [roomKey]: bool }
+  const [editingDate, setEditingDate] = useState(null); // `${roomKey}-${listKey}-${id}`
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [editingTitleValue, setEditingTitleValue] = useState("");
+  const [openPicker, setOpenPicker] = useState(null);
+
+  const allPersons = [
+    ...projectMembers.map(m => ({ id: m.id, name: m.name })),
+    ...persons.map(p => ({ id: p.id, name: p.name })),
+  ].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i);
+
+  const createPerson = (name) => {
+    if (!setPersons) return;
+    const newPerson = { id: `person-${Date.now()}`, name };
+    const updated = [...persons, newPerson];
+    setPersons(updated);
+    if (savePersonsFn && projectId) savePersonsFn(projectId, updated);
+  };
 
   const toggleItem = (roomKey, listKey, id) => {
     setRoomLists((prev) => {
@@ -3900,6 +3917,15 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
   const deleteItem = (roomKey, listKey, id) => {
     setRoomLists((prev) => {
       const updatedList = ((prev[roomKey] || {})[listKey] || []).filter((item) => item.id !== id);
+      const next = { ...prev, [roomKey]: { ...(prev[roomKey] || {}), [listKey]: updatedList } };
+      if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, roomKey, listKey, updatedList);
+      return next;
+    });
+  };
+
+  const updateItemMeta = (roomKey, listKey, id, patch) => {
+    setRoomLists((prev) => {
+      const updatedList = ((prev[roomKey] || {})[listKey] || []).map((item) => item.id === id ? { ...item, ...patch } : item);
       const next = { ...prev, [roomKey]: { ...(prev[roomKey] || {}), [listKey]: updatedList } };
       if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, roomKey, listKey, updatedList);
       return next;
@@ -3970,48 +3996,92 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
   };
 
   // ── Shared item row ──────────────────────────────────────────────────────
-  const renderItemRow = (item, showRoom = false) => (
-    <li key={item.id}
-      className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}>
-      <button type="button" onClick={() => toggleItem(item.roomKey, item.listKey, item.id)}
-        className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}>
-        {item.done ? "✓" : ""}
-      </button>
-      {item.image && (
-        <img src={item.image} alt={item.previewTitle || item.text}
-          className="h-10 w-10 shrink-0 rounded-md object-cover border border-black/10" />
-      )}
-      <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>
-        {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-70">{item.text}</a> : item.text}
-      </span>
-      <div className="flex shrink-0 items-center gap-1.5">
-        {showRoom && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-            {allRoomPresets[item.roomKey]?.label}
-          </span>
+  const renderItemRow = (item, showRoom = false) => {
+    const { roomKey, listKey, id } = item;
+    const dateKey = `${roomKey}-${listKey}-${id}`;
+    const pickerKey = `item-${id}`;
+    const reactions = itemReactions[id] || [];
+    return (
+      <li key={id}
+        className={`group flex flex-col gap-0.5 rounded-lg border px-3 py-2 ${item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => toggleItem(roomKey, listKey, id)}
+            className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}>
+            {item.done ? "✓" : ""}
+          </button>
+          {item.url ? (
+            <LinkPreviewMini
+              item={item}
+              editingTitle={editingTitleId === id}
+              editingValue={editingTitleValue}
+              onChangeEditValue={setEditingTitleValue}
+              onSaveEditTitle={() => {
+                if (editingTitleValue.trim()) updateItemMeta(roomKey, listKey, id, { text: editingTitleValue.trim() });
+                setEditingTitleId(null); setEditingTitleValue("");
+              }}
+              onCancelEditTitle={() => { setEditingTitleId(null); setEditingTitleValue(""); }}
+            />
+          ) : (
+            <span className={`min-w-0 flex-1 break-words text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{item.text}</span>
+          )}
+          {showRoom && (
+            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+              {allRoomPresets[roomKey]?.label}
+            </span>
+          )}
+          {/* Due date */}
+          {editingDate === dateKey ? (
+            <input type="date" autoFocus value={item.dueDate || ""}
+              onChange={e => updateItemMeta(roomKey, listKey, id, { dueDate: e.target.value || undefined })}
+              onBlur={() => setEditingDate(null)}
+              className="w-28 shrink-0 rounded border border-black/15 px-1 py-0.5 text-xs outline-none" />
+          ) : item.dueDate ? (
+            <button type="button" onClick={() => setEditingDate(dateKey)} title="Modifier l'échéance"
+              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${isDueOverdue(item.dueDate) ? "bg-red-50 text-red-500" : isDueSoonDate(item.dueDate) ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+              {formatDueDate(item.dueDate)}
+            </button>
+          ) : (
+            <button type="button" onClick={() => setEditingDate(dateKey)} title="Ajouter une échéance"
+              className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </button>
+          )}
+          {/* Assignee */}
+          <div className="relative shrink-0">
+            {item.assignee ? (
+              <button type="button"
+                onClick={() => setOpenPicker(openPicker === pickerKey ? null : pickerKey)}
+                className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white"
+                style={{ background: personColor(item.assignee) }} title={item.assignee}>
+                {personInitials(item.assignee)}
+              </button>
+            ) : (
+              <button type="button"
+                onClick={() => setOpenPicker(openPicker === pickerKey ? null : pickerKey)}
+                className="grid h-5 w-5 place-items-center rounded-full border border-dashed border-slate-400 text-[9px] text-slate-400 opacity-0 transition-opacity hover:border-slate-600 hover:text-slate-600 group-hover:opacity-100"
+                title="Assigner">+</button>
+            )}
+            {openPicker === pickerKey && (
+              <PersonPicker allPersons={allPersons} value={item.assignee || ""}
+                onSelect={name => { updateItemMeta(roomKey, listKey, id, { assignee: name || undefined }); setOpenPicker(null); }}
+                onCreatePerson={name => { createPerson(name); updateItemMeta(roomKey, listKey, id, { assignee: name }); setOpenPicker(null); }}
+                onClose={() => setOpenPicker(null)} />
+            )}
+          </div>
+          <button type="button" onClick={() => deleteItem(roomKey, listKey, id)}
+            className="shrink-0 px-1 text-slate-400 opacity-0 transition-opacity hover:text-slate-700 group-hover:opacity-100">×</button>
+        </div>
+        {reactions.length > 0 && (
+          <ReactionRow
+            itemId={id}
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onToggle={onToggleReaction}
+          />
         )}
-        {item.dueDate && groupBy === "room" && (
-          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${isDueOverdue(item.dueDate) ? "bg-red-50 text-red-500" : isDueSoonDate(item.dueDate) ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
-            {formatDueDate(item.dueDate)}
-          </span>
-        )}
-        {item.assignee && (
-          <span className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white"
-            style={{ background: personColor(item.assignee) }} title={item.assignee}>
-            {personInitials(item.assignee)}
-          </span>
-        )}
-        {groupBy === "room" && (
-          <span className="text-[11px] text-slate-400">{item.listKey === "shopping" ? "courses" : "à faire"}</span>
-        )}
-        <button type="button" onClick={() => deleteItem(item.roomKey, item.listKey, item.id)}
-          className="ml-1 grid h-5 w-5 shrink-0 place-items-center rounded text-slate-300 hover:bg-red-50 hover:text-red-400 transition-colors"
-          title="Supprimer">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-    </li>
-  );
+      </li>
+    );
+  };
 
   const weekGroups = groupBy === "week" ? buildWeekGroups(visibleItems) : null;
 
@@ -4791,7 +4861,7 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
                     } : undefined}
                   />
                 ) : (
-                  <span className={`min-w-0 flex-1 text-sm ${item.done && listKey !== "shopping" ? "text-slate-400 line-through" : item.done ? "text-amber-800" : "text-slate-800"}`}>{item.text}</span>
+                  <span className={`min-w-0 flex-1 break-all text-sm ${item.done && listKey !== "shopping" ? "text-slate-400 line-through" : item.done ? "text-amber-800" : "text-slate-800"}`}>{item.text}</span>
                 )}
                 {/* Badge échéance */}
                 {editingDate === item.id ? (
@@ -7298,6 +7368,13 @@ export default function App() {
               setRoomLists={setRoomLists}
               projectId={projectId}
               saveRoomItemsFn={saveRoomItemsToServer}
+              itemReactions={itemReactions}
+              currentUserId={user?.id}
+              onToggleReaction={toggleReaction}
+              persons={persons}
+              projectMembers={projectMembers}
+              setPersons={setPersons}
+              savePersonsFn={savePersonsToServer}
             />
           ) : generalMode === "couleurs" ? (
             <>
