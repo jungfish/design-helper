@@ -1534,7 +1534,7 @@ function PlanPreview({
   );
 }
 
-function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirationLinks, setInspirationLinks, aiContext, aiInspirations, addAiInspiration, imageAnalysis, setImageAnalysis, deletedImages, setDeletedImages, onImageClick, instagramItems, setInstagramItems }) {
+function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirationLinks, setInspirationLinks, aiContext, aiInspirations, addAiInspiration, imageAnalysis, setImageAnalysis, deletedImages, setDeletedImages, onImageClick, instagramItems, setInstagramItems, onLogActivity }) {
   const items = [
     ...(roomInspirationImages[room] || []).map((src, i) => ({ src, cardKey: `${room}-${i}`, index: i })),
     ...(aiInspirations[room] || []).map((src, i) => ({ src, cardKey: `${room}-ai-${i}`, index: i })),
@@ -1578,6 +1578,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
       const nextKey = `${room}-ai-${nextIndex}`;
       const url = await uploadToBlob(data, `${nextKey}-${Date.now()}.${extFromDataUrl(data)}`);
       addAiInspiration(room, url);
+      if (onLogActivity) onLogActivity("inspiration_added", room, {});
       const analysis = await analyzeImageForContext({
         image: url,
         context: `Inspiration ajoutée ${label}`,
@@ -1595,6 +1596,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
     const url = await uploadUrlToBlob(imageUrl, `${nextKey}-${Date.now()}.${safeExt}`);
     if (!url) return;
     addAiInspiration(room, url);
+    if (onLogActivity) onLogActivity("inspiration_added", room, {});
     const analysis = await analyzeImageForContext({
       image: url,
       context: `Inspiration ajoutée ${label}`,
@@ -3048,7 +3050,7 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
   );
 }
 
-function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, projectMembers, allRoomPresets, orderedActiveRooms, onNavigateToRoom, onDiscussionUpdate, onMarkMentionsRead }) {
+function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, projectMembers, allRoomPresets, orderedActiveRooms, onNavigateToRoom, onDiscussionUpdate, onMarkMentionsRead, onLogActivity }) {
   const [filter, setFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -3074,6 +3076,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
       const { discussionId } = await r.json();
       const newDisc = { id: discussionId, title: newTitle.trim(), status: 'open', is_pinned: false, message_count: 0, last_message_preview: null, last_message_at: null, created_at: new Date().toISOString(), created_by: user?.id, unread_count: 0 };
       onDiscussionsChange(room, [newDisc, ...(discussions || [])]);
+      if (onLogActivity) onLogActivity("discussion_added", room, { title: newTitle.trim() });
       setNewTitle('');
       setShowCreate(false);
       setOpenThread({ discussionId, discussion: newDisc });
@@ -4248,7 +4251,7 @@ function PersonPicker({ allPersons, value, onSelect, onCreatePerson, onClose }) 
 
 // ─── Section listes (tâches + courses) ───────────────────────────────────────
 
-function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn, projectMembers = [], persons = [], setPersons, savePersonsFn }) {
+function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn, projectMembers = [], persons = [], setPersons, savePersonsFn, onLogActivity }) {
   const [shopInput, setShopInput] = useState("");
   const [todoInput, setTodoInput] = useState("");
   const [linkMode, setLinkMode] = useState({ shopping: false, todos: false });
@@ -4288,6 +4291,7 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
     setRoomLists((prev) => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
     setter("");
     if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
+    if (onLogActivity) onLogActivity(listKey === 'todos' ? 'todo_added' : 'shopping_added', room, { text: text.trim() });
     if (url) {
       try {
         const preview = await fetchLinkPreview(url);
@@ -5234,6 +5238,8 @@ export default function App() {
   const [chatHistory, setChatHistory] = useState({});
   const [generalContext, setGeneralContext] = useState("");
   const [generalResources, setGeneralResources] = useState([]);
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [activityLastViewed, setActivityLastViewed] = useState(null);
 
   const customRoomPresets = Object.fromEntries(
     customRooms.map((customRoom) => [
@@ -5403,6 +5409,22 @@ export default function App() {
       ...prev,
       [targetRoom]: [...(prev[targetRoom] || []), image],
     }));
+  };
+
+  const logActivity = async (actionType, roomKey, metadata = {}) => {
+    if (!projectId || !user || !import.meta.env.VITE_SUPABASE_URL) return;
+    try {
+      const entry = {
+        project_id: projectId,
+        user_id: user.id,
+        user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Utilisateur',
+        action_type: actionType,
+        room_key: roomKey || null,
+        metadata,
+      };
+      const { data } = await supabase.from('activity_log').insert(entry).select().single();
+      if (data) setActivityFeed(prev => [data, ...prev].slice(0, 50));
+    } catch { /* ignore */ }
   };
 
   const addExtraPlanImage = (targetRoom, image) => {
@@ -6051,6 +6073,35 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, [projectId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Charger le fil d'activité du projet
+  useEffect(() => {
+    if (!projectId || !import.meta.env.VITE_SUPABASE_URL) return;
+    supabase
+      .from('activity_log')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => { if (data) setActivityFeed(data); })
+      .catch(() => {});
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime — nouvelles activités des autres membres
+  useEffect(() => {
+    if (!projectId || !import.meta.env.VITE_SUPABASE_URL) return;
+    const channel = supabase
+      .channel(`activity-${projectId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log', filter: `project_id=eq.${projectId}` },
+        (payload) => {
+          setActivityFeed(prev => {
+            if (prev.some(e => e.id === payload.new.id)) return prev;
+            return [payload.new, ...prev].slice(0, 50);
+          });
+        }
+      ).subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save debounce — silently push changes to Supabase for real-time sharing
   useEffect(() => {
     if (!projectId || isApplyingRemoteUpdate.current) return;
@@ -6234,11 +6285,13 @@ export default function App() {
               );
               const tDocs = orderedActiveRooms.reduce((acc, k) => acc + (roomDocuments[k] || []).length, 0);
               const tMention = (mentionNotifications || []).filter((n) => !n.read_at).length;
+              const tActivity = activityFeed.filter(e => e.user_id !== user?.id && (!activityLastViewed || e.created_at > activityLastViewed)).length;
               return [
                 { key: "todos", label: "Todos", badge: tPending, mention: 0 },
                 { key: "couleurs", label: "Couleurs", badge: 0, mention: 0 },
                 { key: "discussions", label: "Discussions", badge: tUnread, mention: tMention },
                 { key: "ressources", label: "Ressources", badge: tDocs, mention: 0 },
+                { key: "activite", label: "Activité", badge: tActivity, mention: 0 },
               ].map(({ key, label, badge, mention }) => {
                 const active = viewMode === "general" && generalMode === key;
                 return (
@@ -6248,6 +6301,7 @@ export default function App() {
                     onClick={() => {
                       setViewMode("general");
                       setGeneralMode(key);
+                      if (key === "activite") setActivityLastViewed(new Date().toISOString());
                       setSidebarOpen(false);
                     }}
                     className={`group relative flex w-full items-center gap-1.5 rounded-md px-2 py-[6px] text-left text-[13px] transition-colors ${
@@ -6718,16 +6772,18 @@ export default function App() {
                 }, 0);
                 const totalDocs = orderedActiveRooms.reduce((acc, key) => acc + (roomDocuments[key] || []).length, 0);
                 const totalMentionUnread = (mentionNotifications || []).filter(n => !n.read_at).length;
+                const totalActivity = activityFeed.filter(e => e.user_id !== user?.id && (!activityLastViewed || e.created_at > activityLastViewed)).length;
                 return [
                   { key: "todos", label: "Todos", badge: totalPending },
                   { key: "couleurs", label: "Couleurs", badge: 0 },
                   { key: "discussions", label: "Discussions", badge: totalUnread, mentionBadge: totalMentionUnread },
                   { key: "ressources", label: "Ressources", badge: totalDocs },
+                  { key: "activite", label: "Activité", badge: totalActivity },
                 ].map(({ key, label, badge, mentionBadge }) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setGeneralMode(key)}
+                    onClick={() => { setGeneralMode(key); if (key === "activite") setActivityLastViewed(new Date().toISOString()); }}
                     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                       generalMode === key ? "bg-[#1C1A17] text-white" : "text-[#4D4A47] hover:bg-black/[0.06] hover:text-[#1C1A17]"
                     }`}
@@ -6846,11 +6902,16 @@ export default function App() {
                 />
               )}
             </>
-          ) : (
+          ) : generalMode === "ressources" ? (
             <DocumentsGlobalView
               orderedActiveRooms={orderedActiveRooms}
               allRoomPresets={allRoomPresets}
               roomDocuments={roomDocuments}
+            />
+          ) : (
+            <ActivityFeedView
+              activityFeed={activityFeed}
+              allRoomPresets={allRoomPresets}
             />
           )
         ) : roomMode === "couleurs" ? (
@@ -7077,6 +7138,7 @@ export default function App() {
                 onImageClick={(images, idx) => setLightbox({ images, index: idx ?? 0 })}
                 instagramItems={instagramItems}
                 setInstagramItems={setInstagramItems}
+                onLogActivity={logActivity}
               />
             </section>
             <section className="rounded-xl border border-black/10 bg-white p-4">
@@ -7113,6 +7175,7 @@ export default function App() {
               persons={persons}
               setPersons={setPersons}
               savePersonsFn={savePersonsToServer}
+              onLogActivity={logActivity}
             />
             <DocumentsSection
               room={room}
@@ -7146,6 +7209,7 @@ export default function App() {
               });
             }}
             onMarkMentionsRead={markMentionsRead}
+            onLogActivity={logActivity}
           />
         ) : null}
 
