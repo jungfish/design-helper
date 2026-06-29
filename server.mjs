@@ -475,34 +475,119 @@ createServer(async (req, res) => {
     }
 
     if (req.url === "/api/chat") {
-      const { messages, roomContext } = body;
+      const { messages, roomContext, isGeneral, availableRooms } = body;
       if (!messages?.length) {
         sendJson(res, 400, { error: "Messages requis." });
         return;
       }
       const ctx = roomContext || {};
-      const systemPrompt = [
-        "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
-        "Tu aides l'utilisateur à prendre des décisions de design pour son appartement.",
-        "",
-        ctx.generalContext ? `Goûts & contraintes de l'appartement: ${ctx.generalContext}` : null,
-        ctx.generalContext ? "" : null,
-        `Pièce active — ${ctx.label || "pièce"}: ${ctx.line || ""}`,
-        `Palette: dominante ${ctx.dominantName || ""} (${ctx.dominantHex || ""}), secondaire ${ctx.secondaryName || ""} (${ctx.secondaryHex || ""}), accent ${ctx.accentName || ""} (${ctx.accentHex || ""})`,
-        ctx.roomNote ? `Notes: ${ctx.roomNote}` : null,
-        ctx.imageMetadataSummary ? `Contexte visuel: ${ctx.imageMetadataSummary}` : null,
-        ctx.todoItems?.length ? `Todos de la pièce: ${ctx.todoItems.join(", ")}` : null,
-        ctx.shoppingItems?.length ? `En liste de courses: ${ctx.shoppingItems.join(", ")}` : null,
-        ctx.materialSummary?.length ? `Matériaux choisis: ${ctx.materialSummary.join("; ")}` : null,
-        ctx.allRoomsSummary ? `Autres pièces: ${ctx.allRoomsSummary}` : null,
-        "",
-        "Règles:",
-        "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
-        "- Reste dans l'univers rétro, coloré, doux — jamais d'accents rouges, pas de style minimaliste froid",
-        "- Si l'utilisateur demande des produits, utilise la recherche web pour trouver des résultats réels et inclus des URLs directes",
-        `- Si tu suggères une modification visuelle concrète et précise, termine ta réponse par exactement ce bloc sur une nouvelle ligne: ${CHAT_IMAGE_PROMPT_MARKER}{"prompt":"<instruction en anglais pour édition d'image>"}${CHAT_IMAGE_PROMPT_MARKER}`,
-        "- N'inclus ce bloc que si la suggestion est clairement visuelle et actionnable",
-      ].filter(Boolean).join("\n");
+
+      let chatTools = CHAT_TOOLS;
+      let systemPrompt;
+
+      if (isGeneral && Array.isArray(availableRooms) && availableRooms.length) {
+        const roomKeyDesc = availableRooms.map(r => `"${r.key}" (${r.label})`).join(", ");
+        chatTools = [
+          { type: "web_search_preview" },
+          {
+            type: "function",
+            name: "generate_image",
+            description: CHAT_TOOLS[1].description,
+            parameters: CHAT_TOOLS[1].parameters,
+          },
+          {
+            type: "function",
+            name: "add_to_shopping_list",
+            description: "Ajoute des articles à la liste de courses d'une pièce spécifique.",
+            parameters: {
+              type: "object",
+              properties: {
+                room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+                items: { type: "array", items: { type: "string" } },
+              },
+              required: ["room_key", "items"], strict: true,
+            },
+          },
+          {
+            type: "function",
+            name: "add_to_todo_list",
+            description: "Ajoute des tâches à la liste de todos d'une pièce spécifique.",
+            parameters: {
+              type: "object",
+              properties: {
+                room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+                items: { type: "array", items: { type: "string" } },
+              },
+              required: ["room_key", "items"], strict: true,
+            },
+          },
+          {
+            type: "function",
+            name: "save_room_note",
+            description: "Met à jour la note de design d'une pièce spécifique.",
+            parameters: {
+              type: "object",
+              properties: {
+                room_key: { type: "string", description: `Clé de la pièce cible. Valeurs possibles: ${roomKeyDesc}` },
+                note: { type: "string" },
+              },
+              required: ["room_key", "note"], strict: true,
+            },
+          },
+        ];
+
+        const roomsDetail = availableRooms.map(r => {
+          const parts = [`— ${r.label} (key: "${r.key}"): ${r.line || ""}`];
+          if (r.roomNote) parts.push(`  Note: ${r.roomNote}`);
+          if (r.todoItems?.length) parts.push(`  Todos: ${r.todoItems.join(", ")}`);
+          if (r.shoppingItems?.length) parts.push(`  En liste: ${r.shoppingItems.join(", ")}`);
+          if (r.materialSummary?.length) parts.push(`  Matériaux: ${r.materialSummary.join("; ")}`);
+          return parts.join("\n");
+        }).join("\n");
+
+        systemPrompt = [
+          "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
+          "Tu aides l'utilisateur à prendre des décisions de design pour son appartement.",
+          "",
+          ctx.generalContext ? `Goûts & contraintes de l'appartement: ${ctx.generalContext}` : null,
+          "",
+          "Mode Appartement — tu as accès à toutes les pièces et peux agir sur chacune.",
+          "Quand tu utilises un outil (add_to_shopping_list, add_to_todo_list, save_room_note), tu DOIS toujours spécifier room_key.",
+          "",
+          "Pièces disponibles:",
+          roomsDetail,
+          "",
+          "Règles:",
+          "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
+          "- Reste dans l'univers rétro, coloré, doux — jamais d'accents rouges, pas de style minimaliste froid",
+          "- Si l'utilisateur demande des produits, utilise la recherche web pour trouver des résultats réels et inclus des URLs directes",
+          `- Si tu suggères une modification visuelle concrète et précise, termine ta réponse par exactement ce bloc sur une nouvelle ligne: ${CHAT_IMAGE_PROMPT_MARKER}{"prompt":"<instruction en anglais pour édition d'image>"}${CHAT_IMAGE_PROMPT_MARKER}`,
+          "- N'inclus ce bloc que si la suggestion est clairement visuelle et actionnable",
+        ].filter(Boolean).join("\n");
+      } else {
+        systemPrompt = [
+          "Tu es un assistant de design intérieur expert en décoration française contemporaine et rétro.",
+          "Tu aides l'utilisateur à prendre des décisions de design pour son appartement.",
+          "",
+          ctx.generalContext ? `Goûts & contraintes de l'appartement: ${ctx.generalContext}` : null,
+          ctx.generalContext ? "" : null,
+          `Pièce active — ${ctx.label || "pièce"}: ${ctx.line || ""}`,
+          `Palette: dominante ${ctx.dominantName || ""} (${ctx.dominantHex || ""}), secondaire ${ctx.secondaryName || ""} (${ctx.secondaryHex || ""}), accent ${ctx.accentName || ""} (${ctx.accentHex || ""})`,
+          ctx.roomNote ? `Notes: ${ctx.roomNote}` : null,
+          ctx.imageMetadataSummary ? `Contexte visuel: ${ctx.imageMetadataSummary}` : null,
+          ctx.todoItems?.length ? `Todos de la pièce: ${ctx.todoItems.join(", ")}` : null,
+          ctx.shoppingItems?.length ? `En liste de courses: ${ctx.shoppingItems.join(", ")}` : null,
+          ctx.materialSummary?.length ? `Matériaux choisis: ${ctx.materialSummary.join("; ")}` : null,
+          ctx.allRoomsSummary ? `Autres pièces: ${ctx.allRoomsSummary}` : null,
+          "",
+          "Règles:",
+          "- Réponds en français, de façon concise et praticable (3-6 phrases max par réponse)",
+          "- Reste dans l'univers rétro, coloré, doux — jamais d'accents rouges, pas de style minimaliste froid",
+          "- Si l'utilisateur demande des produits, utilise la recherche web pour trouver des résultats réels et inclus des URLs directes",
+          `- Si tu suggères une modification visuelle concrète et précise, termine ta réponse par exactement ce bloc sur une nouvelle ligne: ${CHAT_IMAGE_PROMPT_MARKER}{"prompt":"<instruction en anglais pour édition d'image>"}${CHAT_IMAGE_PROMPT_MARKER}`,
+          "- N'inclus ce bloc que si la suggestion est clairement visuelle et actionnable",
+        ].filter(Boolean).join("\n");
+      }
 
       const historyToSend = messages.slice(-20);
       const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
@@ -514,7 +599,7 @@ createServer(async (req, res) => {
         body: JSON.stringify({
           model: CHAT_MODEL,
           stream: true,
-          tools: CHAT_TOOLS,
+          tools: chatTools,
           instructions: systemPrompt,
           input: historyToSend.map((m) => {
             const imgList = m.images?.length ? m.images : m.image ? [m.image] : [];

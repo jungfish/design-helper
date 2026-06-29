@@ -688,143 +688,198 @@ function LinkPreviewCard({ preview, onClick, overrideImage }) {
   );
 }
 
-function AddMaterialButton({ onFile, onLink }) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState(null);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkLabel, setLinkLabel] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const inputRef = useRef(null);
-  const containerRef = useRef(null);
+function AddMaterialModal({ onAdd, onClose }) {
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetched, setFetched] = useState(false);
+  const [customImage, setCustomImage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-        setMode(null);
-        setLinkUrl("");
-      }
-    };
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  const handleLinkSubmit = async () => {
-    if (!linkUrl.trim()) return;
-    setIsLoading(true);
+  const doFetchPreview = async (rawUrl) => {
+    if (!rawUrl.trim() || isFetching) return;
+    setIsFetching(true);
+    setFetched(false);
     try {
-      const preview = await fetchLinkPreview(linkUrl.trim());
-      if (linkLabel.trim()) preview.title = linkLabel.trim();
-      onLink(preview);
-      setOpen(false);
-      setMode(null);
-      setLinkUrl("");
-      setLinkLabel("");
+      const p = await fetchLinkPreview(rawUrl.trim());
+      setPreview(p);
+      if (!title.trim() && p.title) setTitle(p.title);
+      setFetched(true);
     } finally {
-      setIsLoading(false);
+      setIsFetching(false);
     }
   };
 
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const data = await readFileAsDataUrl(file);
+      if (typeof data === "string") {
+        const uploaded = await uploadToBlob(data, `material-add-${Date.now()}.${extFromDataUrl(data)}`);
+        setCustomImage(uploaded);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = () => {
+    const linkEntry = {
+      type: "link",
+      url: url.trim() || customImage,
+      title: title.trim() || url.trim() || "Matériau",
+      image: customImage || preview?.image || "",
+      description: preview?.description || "",
+    };
+    const meta = {};
+    if (title.trim()) meta.label = title.trim();
+    if (category) meta.category = category;
+    if (customImage) meta.customImage = customImage;
+    onAdd(linkEntry, meta);
+    onClose();
+  };
+
+  const displayImage = customImage || preview?.image;
+  const canSave = url.trim() || customImage;
+  const showAskImage = fetched && !preview?.image && !customImage;
+  const showDirectUpload = !url.trim() && !customImage;
+
   return (
-    <div className="relative" ref={containerRef}>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            onFile(file);
-            setOpen(false);
-          }
-          e.target.value = "";
-        }}
-      />
-      <button
-        type="button"
-        title="Ajouter un matériau"
-        aria-label="Ajouter un matériau"
-        onClick={() => {
-          setOpen((o) => !o);
-          setMode(null);
-          setLinkUrl("");
-          setLinkLabel("");
-        }}
-        className="grid h-11 w-11 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
-      >
-        +
-      </button>
-      {open && (
-        <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-black/15 bg-white p-3 shadow-xl">
-          {mode !== "link" ? (
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400">
-                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>
-                </svg>
-                <span>Image</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("link")}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-left text-slate-700 hover:bg-slate-50"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-400">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                <span>Lien</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Nom (optionnel)…"
-                value={linkLabel}
-                onChange={(e) => setLinkLabel(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLinkSubmit()}
-                className="w-full rounded border border-black/15 bg-white p-2 text-xs"
-              />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-4 text-base font-semibold">Ajouter un matériau</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Lien</label>
+            <div className="flex gap-2">
               <input
                 type="url"
                 placeholder="https://..."
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLinkSubmit()}
-                className="w-full rounded border border-black/15 bg-white p-2 text-xs"
+                value={url}
+                autoFocus
+                onChange={(e) => { setUrl(e.target.value); setPreview(null); setFetched(false); setCustomImage(""); }}
+                onBlur={() => url.trim() && doFetchPreview(url)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); url.trim() && doFetchPreview(url); } }}
+                className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20"
               />
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => { setMode(null); setLinkLabel(""); setLinkUrl(""); }}
-                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-black/15 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m15 18-6-6 6-6"/>
-                  </svg>
-                  Retour
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLinkSubmit}
-                  disabled={isLoading || !linkUrl.trim()}
-                  className="flex-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-50"
-                >
-                  {isLoading ? "..." : "Ajouter"}
-                </button>
-              </div>
+              {isFetching && (
+                <span className="shrink-0 self-center text-xs text-slate-400">...</span>
+              )}
             </div>
-          )}
+          </div>
+
+          {displayImage ? (
+            <div className="relative">
+              <img src={displayImage} alt="" className="h-32 w-full rounded-lg object-cover" />
+              {customImage && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-sm font-bold shadow"
+                  onClick={() => setCustomImage("")}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ) : showAskImage ? (
+            <div>
+              <p className="mb-2 text-xs text-slate-500">Aucune image trouvée. Voulez-vous en ajouter une ?</p>
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-black/20 py-3 text-sm text-slate-500 hover:bg-slate-50"
+              >
+                {uploading ? "Chargement…" : (
+                  <>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>
+                    </svg>
+                    Ajouter une photo
+                  </>
+                )}
+              </button>
+            </div>
+          ) : showDirectUpload ? (
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-black/20 py-2.5 text-sm text-slate-400 hover:bg-slate-50"
+            >
+              {uploading ? "Chargement…" : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/>
+                  </svg>
+                  ou ajouter une image directement
+                </>
+              )}
+            </button>
+          ) : null}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => { handleImageUpload(e.target.files?.[0]); e.target.value = ""; }}
+          />
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Titre</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex : Parquet chêne naturel"
+              className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Surface</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20"
+            >
+              <option value="">— Choisir une surface —</option>
+              <option>Sol</option>
+              <option>Mur</option>
+              <option>Plafond</option>
+              <option>Crédence</option>
+              <option>Plan de travail</option>
+              <option>Menuiserie</option>
+              <option>Textile</option>
+              <option>Mobilier</option>
+              <option>Autre</option>
+            </select>
+          </div>
         </div>
-      )}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-black/15 px-4 py-2 text-sm hover:bg-slate-50"
+            onClick={onClose}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            disabled={!canSave}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-40"
+            onClick={handleSave}
+          >
+            Ajouter
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3195,7 +3250,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
   );
 }
 
-function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, saveRoomItemsFn, onClose, isExpanded, onToggleExpand, draft = "", onDraftChange, addAiInspiration, addExtraPlanImage }) {
+function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, saveRoomItemsFn, onClose, isExpanded, onToggleExpand, draft = "", onDraftChange, addAiInspiration, addExtraPlanImage }) {
   const [input, setInput] = useState(draft);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -3278,11 +3333,17 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
         todoItems: aiContext.todoItems,
         materialSummary: aiContext.materialSummary,
       },
+      ...(isGeneral ? { isGeneral: true, availableRooms } : {}),
     });
 
     const applyToolCalls = (toolCalls, msg) => {
       const notices = [];
       for (const call of toolCalls) {
+        const targetRoom = isGeneral ? (call.args.room_key || null) : room;
+        if (!targetRoom) continue;
+        const targetLabel = isGeneral ? (availableRooms.find((r) => r.key === targetRoom)?.label || targetRoom) : null;
+        const roomSuffix = targetLabel ? ` → ${targetLabel}` : "";
+
         if (call.name === "add_to_shopping_list" && setRoomLists) {
           const newItems = (call.args.items || []).map((itemText) => {
             const urlMatch = itemText.match(/https?:\/\/[^\s]+/);
@@ -3290,29 +3351,29 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
             return { id: `shopping-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, text: itemText, done: false, ...(url ? { url, previewLoading: true } : {}) };
           });
           setRoomLists((prev) => {
-            const updated = [...((prev[room] || {}).shopping || []), ...newItems];
-            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "shopping", updated);
-            return { ...prev, [room]: { ...(prev[room] || {}), shopping: updated } };
+            const updated = [...((prev[targetRoom] || {}).shopping || []), ...newItems];
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, targetRoom, "shopping", updated);
+            return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), shopping: updated } };
           });
           for (const item of newItems.filter((i) => i.url)) {
             fetchLinkPreview(item.url).then((preview) => {
               setRoomLists((prev) => {
-                const updatedItems = ((prev[room] || {}).shopping || []).map((i) =>
+                const updatedItems = ((prev[targetRoom] || {}).shopping || []).map((i) =>
                   i.id === item.id
                     ? { ...i, previewLoading: false, ...(preview.image ? { image: preview.image } : {}), ...(preview.title ? { previewTitle: preview.title } : {}) }
                     : i
                 );
-                if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "shopping", updatedItems);
-                return { ...prev, [room]: { ...(prev[room] || {}), shopping: updatedItems } };
+                if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, targetRoom, "shopping", updatedItems);
+                return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), shopping: updatedItems } };
               });
             }).catch(() => {
               setRoomLists((prev) => {
-                const updatedItems = ((prev[room] || {}).shopping || []).map((i) => i.id === item.id ? { ...i, previewLoading: false } : i);
-                return { ...prev, [room]: { ...(prev[room] || {}), shopping: updatedItems } };
+                const updatedItems = ((prev[targetRoom] || {}).shopping || []).map((i) => i.id === item.id ? { ...i, previewLoading: false } : i);
+                return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), shopping: updatedItems } };
               });
             });
           }
-          notices.push(`${newItems.length} article${newItems.length > 1 ? "s" : ""} ajouté${newItems.length > 1 ? "s" : ""} à ta liste.`);
+          notices.push(`${newItems.length} article${newItems.length > 1 ? "s" : ""} ajouté${newItems.length > 1 ? "s" : ""} à la liste${roomSuffix}.`);
         } else if (call.name === "add_to_todo_list" && setRoomLists) {
           const newItems = (call.args.items || []).map((itemText) => {
             const urlMatch = itemText.match(/https?:\/\/[^\s]+/);
@@ -3320,33 +3381,33 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
             return { id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, text: itemText, done: false, ...(url ? { url, previewLoading: true } : {}) };
           });
           setRoomLists((prev) => {
-            const updated = [...((prev[room] || {}).todos || []), ...newItems];
-            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "todos", updated);
-            return { ...prev, [room]: { ...(prev[room] || {}), todos: updated } };
+            const updated = [...((prev[targetRoom] || {}).todos || []), ...newItems];
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, targetRoom, "todos", updated);
+            return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), todos: updated } };
           });
           for (const item of newItems.filter((i) => i.url)) {
             fetchLinkPreview(item.url).then((preview) => {
               setRoomLists((prev) => {
-                const updatedItems = ((prev[room] || {}).todos || []).map((i) =>
+                const updatedItems = ((prev[targetRoom] || {}).todos || []).map((i) =>
                   i.id === item.id
                     ? { ...i, previewLoading: false, ...(preview.image ? { image: preview.image } : {}), ...(preview.title ? { previewTitle: preview.title } : {}) }
                     : i
                 );
-                if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "todos", updatedItems);
-                return { ...prev, [room]: { ...(prev[room] || {}), todos: updatedItems } };
+                if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, targetRoom, "todos", updatedItems);
+                return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), todos: updatedItems } };
               });
             }).catch(() => {
               setRoomLists((prev) => {
-                const updatedItems = ((prev[room] || {}).todos || []).map((i) => i.id === item.id ? { ...i, previewLoading: false } : i);
-                return { ...prev, [room]: { ...(prev[room] || {}), todos: updatedItems } };
+                const updatedItems = ((prev[targetRoom] || {}).todos || []).map((i) => i.id === item.id ? { ...i, previewLoading: false } : i);
+                return { ...prev, [targetRoom]: { ...(prev[targetRoom] || {}), todos: updatedItems } };
               });
             });
           }
-          notices.push(`${newItems.length} tâche${newItems.length > 1 ? "s" : ""} ajoutée${newItems.length > 1 ? "s" : ""} aux todos.`);
+          notices.push(`${newItems.length} tâche${newItems.length > 1 ? "s" : ""} ajoutée${newItems.length > 1 ? "s" : ""} aux todos${roomSuffix}.`);
         } else if (call.name === "save_room_note" && setRoomNotes) {
-          setRoomNotes((prev) => ({ ...prev, [room]: call.args.note }));
-          if (saveNoteFn && projectId) saveNoteFn(projectId, room, call.args.note);
-          notices.push("Note de pièce mise à jour.");
+          setRoomNotes((prev) => ({ ...prev, [targetRoom]: call.args.note }));
+          if (saveNoteFn && projectId) saveNoteFn(projectId, targetRoom, call.args.note);
+          notices.push(`Note mise à jour${roomSuffix}.`);
         }
       }
       if (notices.length) {
@@ -3491,7 +3552,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
-            {aiContext.roomLabel}
+            {isGeneral ? "Appartement" : aiContext.roomLabel}
           </span>
           {messages.length > 0 ? (
             <button
@@ -3547,7 +3608,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
                   <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
                 </svg>
               </div>
-              <p className="text-sm text-slate-500 leading-snug max-w-[200px]">Que puis-je faire pour <span className="font-medium text-slate-700">{aiContext.roomLabel}</span> ?</p>
+              <p className="text-sm text-slate-500 leading-snug max-w-[200px]">{isGeneral ? "Que puis-je faire pour votre" : "Que puis-je faire pour"} <span className="font-medium text-slate-700">{isGeneral ? "appartement" : aiContext.roomLabel}</span> ?</p>
             </div>
             <div className="flex flex-wrap justify-center gap-1.5">
               {[
@@ -5425,6 +5486,20 @@ export default function App() {
     const dHex = getShade(nuance.dominantColor || p?.dominant || "creme", nuance.dominant || "moyen");
     return p ? `${p.label}: ${dHex}` : null;
   }).filter(Boolean).join(" | ");
+
+  const availableRooms = viewMode === "general" ? orderedActiveRooms.map((key) => {
+    const p = allRoomPresets[key];
+    if (!p) return null;
+    return {
+      key,
+      label: p.label,
+      line: p.line || "",
+      roomNote: roomNotes[key] || "",
+      todoItems: (roomLists[key]?.todos || []).filter((i) => !i.done).slice(0, 5).map((i) => i.text),
+      shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => i.text),
+      materialSummary: (materialsByRoom[key] || []).map((m) => `${m.label}: ${m.value}`).slice(0, 3),
+    };
+  }).filter(Boolean) : [];
 
   const aiShoppingItems = (roomLists[room]?.shopping || [])
     .filter((i) => !i.done).slice(0, 5).map((i) => i.text);
@@ -7420,7 +7495,9 @@ export default function App() {
               <div className="absolute inset-0" onClick={() => setIsChatOpen(false)} />
               <div className={`relative h-full w-full bg-white shadow-2xl flex flex-col transition-all duration-200 ${isChatExpanded ? "max-w-2xl" : "max-w-sm"}`}>
                 <ChatPanel
-                  room={room}
+                  room={viewMode === "general" ? "general" : room}
+                  isGeneral={viewMode === "general"}
+                  availableRooms={availableRooms}
                   aiContext={aiContext}
                   chatHistory={chatHistory}
                   setChatHistory={setChatHistory}
@@ -7433,8 +7510,8 @@ export default function App() {
                   onClose={() => setIsChatOpen(false)}
                   isExpanded={isChatExpanded}
                   onToggleExpand={() => setIsChatExpanded((v) => !v)}
-                  draft={chatDrafts[room] || ""}
-                  onDraftChange={(val) => setChatDrafts((prev) => ({ ...prev, [room]: val }))}
+                  draft={chatDrafts[viewMode === "general" ? "general" : room] || ""}
+                  onDraftChange={(val) => setChatDrafts((prev) => ({ ...prev, [viewMode === "general" ? "general" : room]: val }))}
                   addAiInspiration={addAiInspiration}
                   addExtraPlanImage={addExtraPlanImage}
                   roomImages={[
