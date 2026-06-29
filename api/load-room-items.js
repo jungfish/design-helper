@@ -114,7 +114,8 @@ export default async function handler(req, res) {
       const { data: member } = await supabase.from("project_members").select("role").eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
       if (!member) { sendJson(res, 403, { error: "Accès refusé." }); return; }
 
-      const { data: memberships } = await supabase
+      // supabaseAdmin : RLS project_members = user_id = auth.uid(), besoin d'admin pour voir tous les membres
+      const { data: memberships } = await supabaseAdmin
         .from("project_members")
         .select("user_id, role")
         .eq("project_id", projectId);

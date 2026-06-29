@@ -2518,6 +2518,7 @@ function GeneralView({
   generalResources, setGeneralResources,
   onNavigateToRoom,
   projectId, saveRoomItemsFn,
+  user, isOwner, discussionsCache, onDiscussionsChange, authedFetch, onOpenThread, projectMembers,
 }) {
   return (
     <div className="space-y-6">
@@ -2530,6 +2531,18 @@ function GeneralView({
       <GeneralContextSection
         generalContext={generalContext}
         setGeneralContext={setGeneralContext}
+      />
+      <DiscussionsPanel
+        room="general"
+        projectId={projectId}
+        user={user}
+        isOwner={isOwner}
+        discussions={discussionsCache?.general}
+        onDiscussionsChange={onDiscussionsChange}
+        authedFetch={authedFetch}
+        onOpenThread={onOpenThread}
+        allRoomPresets={allRoomPresets}
+        orderedActiveRooms={orderedActiveRooms}
       />
       <div className="rounded-xl border border-black/10 bg-white p-4">
         <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Appartement</p>
@@ -3103,7 +3116,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
         }
       }
       if (notices.length) {
-        msg.content = (msg.content ? msg.content + "\n\n" : "") + `_${notices.join(" ")}_`;
+        msg.content = (msg.content ? msg.content + "\n\n" : "") + `*${notices.join(" ")}*`;
       }
     };
 
@@ -5753,14 +5766,15 @@ export default function App() {
               { key: "inspirations", label: "Inspirations" },
               { key: "couleurs", label: "Couleurs" },
               { key: "liste", label: "Liste" },
+              { key: "discussions", label: "Discussions" },
             ].map(({ key, label }) => {
-              const pending = key === "liste" ? roomPendingCount(room) : 0;
+              const pending = key === "liste" ? roomPendingCount(room) : key === "discussions" ? (discussionsCache[room] || []).reduce((sum, d) => sum + (d.unread_count || 0), 0) : 0;
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => handleSetRoomMode(key)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
                     roomMode === key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -5788,6 +5802,13 @@ export default function App() {
             onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             projectId={projectId}
             saveRoomItemsFn={saveRoomItemsToServer}
+            user={user}
+            isOwner={isOwner}
+            discussionsCache={discussionsCache}
+            onDiscussionsChange={updateDiscussionsCache}
+            authedFetch={authedFetch}
+            onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
+            projectMembers={projectMembers}
           />
         ) : viewMode === "todos-global" ? (
           <TodosGlobalView
@@ -6110,6 +6131,45 @@ export default function App() {
               deleteDocFn={deleteRoomDocumentFromServer}
             />
           </div>
+        ) : roomMode === "discussions" ? (
+          <DiscussionsPanel
+            room={room}
+            projectId={projectId}
+            user={user}
+            isOwner={isOwner}
+            discussions={discussionsCache[room]}
+            onDiscussionsChange={updateDiscussionsCache}
+            authedFetch={authedFetch}
+            onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
+            allRoomPresets={allRoomPresets}
+            orderedActiveRooms={orderedActiveRooms}
+          />
+        ) : null}
+
+        {openThread ? (
+          <DiscussionThread
+            discussionId={openThread.discussionId}
+            discussion={openThread.discussion}
+            projectId={projectId}
+            user={user}
+            isOwner={isOwner}
+            authedFetch={authedFetch}
+            projectMembers={projectMembers}
+            orderedActiveRooms={orderedActiveRooms}
+            allRoomPresets={allRoomPresets}
+            onClose={() => setOpenThread(null)}
+            onDiscussionUpdate={(patch) => {
+              setOpenThread(prev => prev ? { ...prev, discussion: { ...prev.discussion, ...patch } } : prev);
+              setDiscussionsCache(prev => {
+                const updated = { ...prev };
+                for (const rk of Object.keys(updated)) {
+                  updated[rk] = (updated[rk] || []).map(d => d.id === openThread.discussionId ? { ...d, ...patch } : d);
+                }
+                return updated;
+              });
+            }}
+            onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); setOpenThread(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          />
         ) : null}
 
         {lightbox ? <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} /> : null}
