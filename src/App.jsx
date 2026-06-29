@@ -3175,7 +3175,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
   );
 }
 
-function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, saveRoomItemsFn, onClose, draft = "", onDraftChange }) {
+function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, saveRoomItemsFn, onClose, isExpanded, onToggleExpand, draft = "", onDraftChange, addAiInspiration, addExtraPlanImage }) {
   const [input, setInput] = useState(draft);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -3184,6 +3184,8 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [addingSectionFor, setAddingSectionFor] = useState(null);
+  const [addedToSection, setAddedToSection] = useState(null);
 
   const messages = chatHistory[room] || [];
 
@@ -3194,7 +3196,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
   useEffect(() => {
     if (inputRef.current && input) {
       inputRef.current.style.height = "auto";
-      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + "px";
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 240) + "px";
     }
   }, []);
 
@@ -3427,29 +3429,52 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between border-b border-black/10 p-4">
-        <div>
-          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Assistant</p>
-          <h3 className="type-h3">Chat IA — {aiContext.roomLabel}</h3>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-black/8">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 shrink-0">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            {aiContext.roomLabel}
+          </span>
           {messages.length > 0 ? (
             <button
               type="button"
               onClick={() => setChatHistory((prev) => ({ ...prev, [room]: [] }))}
-              className="text-xs text-slate-400 hover:text-slate-600"
+              className="text-xs text-slate-400 hover:text-slate-500 transition-colors"
             >
               Effacer
+            </button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1">
+          {onToggleExpand ? (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              aria-label={isExpanded ? "Réduire" : "Élargir"}
+              title={isExpanded ? "Réduire" : "Élargir"}
+            >
+              {isExpanded ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>
+                </svg>
+              )}
             </button>
           ) : null}
           {onClose ? (
             <button
               type="button"
               onClick={onClose}
-              className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
               aria-label="Fermer"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M18 6 6 18M6 6l12 12"/>
               </svg>
             </button>
@@ -3459,25 +3484,27 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
 
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-4">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-slate-400">
-            <span className="text-3xl">✦</span>
-            <p className="text-slate-500">Posez une question ou demandez-moi de créer des listes pour cette pièce.</p>
-            <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                </svg>
+              </div>
+              <p className="text-sm text-slate-500 leading-snug max-w-[200px]">Que puis-je faire pour <span className="font-medium text-slate-700">{aiContext.roomLabel}</span> ?</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-1.5">
               {[
-                { label: "Créer une liste de courses", icon: "🛒" },
-                { label: "Ajouter des tâches à faire", icon: "✓" },
-                { label: "Quelles couleurs pour les murs ?", icon: null },
-                { label: "Quelle ambiance lumineuse ?", icon: null },
+                { label: "Liste de courses", icon: "🛒" },
+                { label: "Tâches à faire", icon: "✓" },
+                { label: "Couleurs pour les murs ?", icon: null },
+                { label: "Ambiance lumineuse ?", icon: null },
               ].map(({ label, icon }) => (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => sendMessage(icon ? `${label}` : label)}
-                  className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                    icon
-                      ? "border-slate-900/20 bg-slate-900 text-white hover:bg-slate-700"
-                      : "border-black/15 bg-[#f9f7f3] text-slate-600 hover:bg-[#fcf8d5]"
-                  }`}
+                  onClick={() => sendMessage(label)}
+                  className="rounded-full border border-black/12 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:border-black/20 transition-colors"
                 >
                   {icon && <span className="mr-1">{icon}</span>}{label}
                 </button>
@@ -3503,7 +3530,64 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
                 ) : null}
                 {msg.content ? <p className="whitespace-pre-wrap leading-relaxed">{renderMessageContent(msg.content)}</p> : null}
                 {msg.generatedImage ? (
-                  <img src={msg.generatedImage} alt="Image générée" className="mt-2 w-full rounded-lg" />
+                  <div className="mt-2 space-y-2">
+                    <img src={msg.generatedImage} alt="Image générée" className="w-full rounded-lg" />
+                    {addedToSection === msg.generatedImage ? (
+                      <p className="text-xs text-green-600 font-medium">Ajouté ✓</p>
+                    ) : addingSectionFor === msg.generatedImage ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-slate-500">Ajouter à :</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {addAiInspiration && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addAiInspiration(room, msg.generatedImage);
+                                setAddingSectionFor(null);
+                                setAddedToSection(msg.generatedImage);
+                                setTimeout(() => setAddedToSection(null), 2000);
+                              }}
+                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700"
+                            >
+                              Inspirations
+                            </button>
+                          )}
+                          {addExtraPlanImage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addExtraPlanImage(room, msg.generatedImage);
+                                setAddingSectionFor(null);
+                                setAddedToSection(msg.generatedImage);
+                                setTimeout(() => setAddedToSection(null), 2000);
+                              }}
+                              className="rounded-full border border-black/20 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Plans
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setAddingSectionFor(null)}
+                            className="px-1 text-xs text-slate-400 hover:text-slate-600"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAddingSectionFor(msg.generatedImage)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-black/20 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Ajouter à une section
+                      </button>
+                    )}
+                  </div>
                 ) : null}
                 {msg.imagePrompt && visibleImages.length > 0 ? (
                   <div className="mt-2">
@@ -3580,52 +3664,32 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-black/10 p-3">
-        {pendingImages.length > 0 ? (
-          <div className="mb-2 flex flex-wrap items-end gap-2">
-            {pendingImages.map((img, i) => (
-              <div key={i} className="relative">
-                <img src={img} alt="preview" className="h-16 w-16 rounded-lg object-cover border border-black/10" />
-                <button
-                  type="button"
-                  onClick={() => setPendingImages((prev) => prev.filter((_, j) => j !== i))}
-                  className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-slate-900 text-[9px] text-white leading-none"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {pendingImages.length > 1 ? (
-              <button
-                type="button"
-                onClick={() => setPendingImages([])}
-                className="text-xs text-slate-400 hover:text-slate-700"
-              >
-                Tout retirer
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleImagePick}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="shrink-0 self-end rounded-md border border-black/15 bg-[#f9f7f3] px-3 py-2 text-slate-500 hover:bg-[#f0ebe0] disabled:opacity-40"
-            title="Joindre des photos"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-            </svg>
-          </button>
+      <div className="border-t border-black/8 p-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleImagePick}
+        />
+        <div className="rounded-xl border border-black/12 bg-[#f9f7f3] overflow-hidden focus-within:border-slate-400 focus-within:bg-white transition-colors">
+          {pendingImages.length > 0 ? (
+            <div className="flex flex-wrap items-end gap-2 px-3 pt-3">
+              {pendingImages.map((img, i) => (
+                <div key={i} className="relative">
+                  <img src={img} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-black/10" />
+                  <button
+                    type="button"
+                    onClick={() => setPendingImages((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-slate-900 text-[9px] text-white leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={inputRef}
             value={input}
@@ -3634,7 +3698,7 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
               setInput(val);
               onDraftChange?.(val);
               e.target.style.height = "auto";
-              e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+              e.target.style.height = Math.min(e.target.scrollHeight, 240) + "px";
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -3642,20 +3706,36 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
                 sendMessage();
               }
             }}
-            placeholder="Pose une question… (Cmd+Entrée pour envoyer)"
-            rows={1}
-            style={{ height: input ? undefined : "36px" }}
-            className="min-w-0 flex-1 resize-none rounded-md border border-black/15 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-900 overflow-hidden"
+            placeholder="Pose une question sur cette pièce…"
+            rows={5}
+            className="w-full resize-none bg-transparent px-3 pt-3 pb-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none overflow-hidden"
           />
-          <button
-            type="button"
-            onClick={() => sendMessage()}
-            disabled={(!input.trim() && !pendingImages.length) || isLoading}
-            className="shrink-0 self-end rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-          >
-            Envoyer
-          </button>
+          <div className="flex items-center justify-between px-2 pb-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-black/5 disabled:opacity-40 transition-colors"
+              title="Joindre des photos"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => sendMessage()}
+              disabled={(!input.trim() && !pendingImages.length) || isLoading}
+              className="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-white disabled:opacity-30 hover:bg-slate-700 transition-colors"
+              title="Envoyer (Cmd+Entrée)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+              </svg>
+            </button>
+          </div>
         </div>
+        <p className="mt-1.5 text-center text-[10px] text-slate-400">Cmd+Entrée pour envoyer</p>
       </div>
     </div>
   );
@@ -4844,6 +4924,7 @@ export default function App() {
   const [lightbox, setLightbox] = useState(null);
   const [show3D, setShow3D] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [chatBubbleDismissed, setChatBubbleDismissed] = useState(false);
   const [chatDrafts, setChatDrafts] = useState({});
   const [discussionsCache, setDiscussionsCache] = useState({});
@@ -5057,6 +5138,13 @@ export default function App() {
 
   const addAiInspiration = (targetRoom, image) => {
     setAiInspirations((prev) => ({
+      ...prev,
+      [targetRoom]: [...(prev[targetRoom] || []), image],
+    }));
+  };
+
+  const addExtraPlanImage = (targetRoom, image) => {
+    setExtraPlanImages((prev) => ({
       ...prev,
       [targetRoom]: [...(prev[targetRoom] || []), image],
     }));
@@ -6941,7 +7029,7 @@ export default function App() {
           {isChatOpen ? (
             <div className="fixed inset-0 z-50 flex items-start justify-end">
               <div className="absolute inset-0" onClick={() => setIsChatOpen(false)} />
-              <div className="relative h-full w-full max-w-sm bg-white shadow-2xl flex flex-col">
+              <div className={`relative h-full w-full bg-white shadow-2xl flex flex-col transition-all duration-200 ${isChatExpanded ? "max-w-2xl" : "max-w-sm"}`}>
                 <ChatPanel
                   room={room}
                   aiContext={aiContext}
@@ -6954,8 +7042,12 @@ export default function App() {
                   saveNoteFn={saveRoomNoteToServer}
                   saveRoomItemsFn={saveRoomItemsToServer}
                   onClose={() => setIsChatOpen(false)}
+                  isExpanded={isChatExpanded}
+                  onToggleExpand={() => setIsChatExpanded((v) => !v)}
                   draft={chatDrafts[room] || ""}
                   onDraftChange={(val) => setChatDrafts((prev) => ({ ...prev, [room]: val }))}
+                  addAiInspiration={addAiInspiration}
+                  addExtraPlanImage={addExtraPlanImage}
                   roomImages={[
                     ...(roomPlanImages[room] || []).map((src, i) => ({ src: planUploads[`${room}-plan-${i}`] || src, key: `${room}-plan-${i}` })),
                     ...(extraPlanImages[room] || []).map((src, i) => ({ src, key: `${room}-plan-extra-${i}` })),
