@@ -189,7 +189,7 @@ export default async function handler(req, res) {
 
     // --- discussion-message ---
     if (action === "discussion-message" && req.method === "POST") {
-      const { projectId, discussionId, content, linkedImage } = body;
+      const { projectId, discussionId, content, linkedImage, mentionedUserIds } = body;
       if (!projectId || !discussionId || !content?.trim()) {
         sendJson(res, 400, { error: "projectId, discussionId et content requis." });
         return;
@@ -218,7 +218,44 @@ export default async function handler(req, res) {
         { onConflict: "user_id,discussion_id" }
       ).then(() => {}).catch(() => {});
 
+      // Créer les notifications de mention (fire-and-forget)
+      if (Array.isArray(mentionedUserIds) && mentionedUserIds.length > 0) {
+        const notifRows = mentionedUserIds
+          .filter(uid => uid && uid !== user.id)
+          .map(uid => ({
+            project_id: projectId,
+            discussion_id: discussionId,
+            message_id: msgData.id,
+            user_id: uid,
+            mentioned_by: user.id,
+          }));
+        if (notifRows.length > 0) {
+          supabase.from("mention_notifications").insert(notifRows).then(() => {}).catch(() => {});
+        }
+      }
+
       sendJson(res, 200, { ok: true, messageId: msgData.id });
+      return;
+    }
+
+    // --- mark-mentions-read ---
+    if (action === "mark-mentions-read" && req.method === "POST") {
+      const { projectId, discussionIds } = body;
+      if (!projectId || !Array.isArray(discussionIds) || discussionIds.length === 0) {
+        sendJson(res, 400, { error: "projectId et discussionIds requis." });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("mention_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("project_id", projectId)
+        .in("discussion_id", discussionIds)
+        .is("read_at", null);
+      if (error) throw new Error(error.message);
+
+      sendJson(res, 200, { ok: true });
       return;
     }
 
