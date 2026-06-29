@@ -2511,34 +2511,95 @@ function GeneralResourcesSection({ generalResources, setGeneralResources }) {
   );
 }
 
-function DiscussionsGlobalView({
-  orderedActiveRooms, allRoomPresets, discussionsCache,
-  projectId, user, isOwner, onDiscussionsChange, authedFetch, projectMembers, onNavigateToRoom, onDiscussionUpdate,
-}) {
+function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussionsCache, onOpenThread }) {
+  const [filter, setFilter] = useState("open");
+
   const allRooms = ["general", ...orderedActiveRooms];
+
+  const totalOpen = allRooms.reduce((acc, key) => {
+    return acc + (discussionsCache[key] || []).filter((d) => d.status === "open").length;
+  }, 0);
+
+  const isEmpty = allRooms.every(
+    (key) => ((discussionsCache?.[key] || []).filter((d) => filter === "all" || d.status === filter)).length === 0
+  );
+
   return (
     <div className="space-y-4">
-      {allRooms.map((roomKey) => (
-        <div key={roomKey} className="rounded-xl border border-black/10 bg-white p-4">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-            {roomKey === "general" ? "Appartement" : allRoomPresets[roomKey]?.label}
-          </p>
-          <DiscussionsPanel
-            room={roomKey}
-            discussions={discussionsCache?.[roomKey]}
-            projectId={projectId}
-            user={user}
-            isOwner={isOwner}
-            onDiscussionsChange={onDiscussionsChange}
-            authedFetch={authedFetch}
-            allRoomPresets={allRoomPresets}
-            orderedActiveRooms={orderedActiveRooms}
-            projectMembers={projectMembers}
-            onNavigateToRoom={onNavigateToRoom}
-            onDiscussionUpdate={onDiscussionUpdate}
-          />
+      <div className="rounded-xl border border-black/10 bg-white p-4">
+        <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
+        <h2 className="type-h2">Toutes les discussions</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          {totalOpen > 0 ? `${totalOpen} fil${totalOpen > 1 ? "s" : ""} ouvert${totalOpen > 1 ? "s" : ""} dans toutes les pièces.` : "Aucun fil ouvert pour l'instant."}
+        </p>
+        <div className="mt-3 flex gap-2">
+          {[{ key: "all", label: "Tout" }, { key: "open", label: "Ouverts" }, { key: "resolved", label: "Résolus" }].map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${filter === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-white"}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      ))}
+      </div>
+
+      {isEmpty ? (
+        <div className="rounded-xl border border-dashed border-black/15 bg-white p-8 text-center">
+          <p className="text-sm text-slate-400">
+            {filter === "all" ? "Aucune discussion pour l'instant." : `Aucun fil ${filter === "open" ? "ouvert" : "résolu"} pour l'instant.`}
+          </p>
+        </div>
+      ) : allRooms.map((roomKey) => {
+        const discussions = (discussionsCache?.[roomKey] || []).filter(
+          (d) => filter === "all" || d.status === filter
+        );
+        if (discussions.length === 0) return null;
+        return (
+          <div key={roomKey} className="rounded-xl border border-black/10 bg-white p-4">
+            <h3 className="mb-3 font-medium text-slate-900">
+              {roomKey === "general" ? "Appartement" : allRoomPresets[roomKey]?.label}
+            </h3>
+            <div className="space-y-2">
+              {discussions.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => onOpenThread(d.id, d)}
+                  className="group w-full rounded-xl border border-black/10 bg-white p-3 text-left transition-all hover:border-slate-300 hover:shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {d.is_pinned && <span className="text-xs">📌</span>}
+                        <span className="truncate font-medium text-slate-900">{d.title}</span>
+                        {d.status === "resolved" && (
+                          <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">Résolu</span>
+                        )}
+                      </div>
+                      {d.last_message_preview && (
+                        <p className="mt-1 truncate text-xs text-slate-400">{d.last_message_preview}</p>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-300">
+                        <span>{d.message_count} message{d.message_count !== 1 ? "s" : ""}</span>
+                        {d.last_message_at && (
+                          <span>· {new Date(d.last_message_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>
+                        )}
+                      </div>
+                    </div>
+                    {(d.unread_count || 0) > 0 && (
+                      <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-amber-900">{d.unread_count}</span>
+                    )}
+                    <span className="shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">→</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2960,14 +3021,14 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
             placeholder="Ex: Canapé, Couleur des murs, Budget…"
             autoFocus
             className="mb-2 w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400" />
-          <div className="flex gap-2">
-            <button type="button" onClick={handleCreate} disabled={!newTitle.trim() || creating}
-              className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
-              {creating ? 'Création…' : 'Créer'}
-            </button>
+          <div className="flex justify-end gap-2">
             <button type="button" onClick={() => { setShowCreate(false); setNewTitle(''); }}
-              className="rounded-lg border border-black/10 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white">
+              className="rounded-lg border border-black/10 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-white">
               Annuler
+            </button>
+            <button type="button" onClick={handleCreate} disabled={!newTitle.trim() || creating}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+              {creating ? 'Création…' : 'Créer'}
             </button>
           </div>
         </div>
@@ -5843,22 +5904,7 @@ export default function App() {
               orderedActiveRooms={orderedActiveRooms}
               allRoomPresets={allRoomPresets}
               discussionsCache={discussionsCache}
-              projectId={projectId}
-              user={user}
-              isOwner={isOwner}
-              onDiscussionsChange={updateDiscussionsCache}
-              authedFetch={authedFetch}
-              projectMembers={projectMembers}
-              onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              onDiscussionUpdate={(discussionId, patch) => {
-                setDiscussionsCache(prev => {
-                  const updated = { ...prev };
-                  for (const rk of Object.keys(updated)) {
-                    updated[rk] = (updated[rk] || []).map(d => d.id === discussionId ? { ...d, ...patch } : d);
-                  }
-                  return updated;
-                });
-              }}
+              onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
             />
           ) : (
             <GeneralResourcesSection
