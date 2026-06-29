@@ -2545,7 +2545,7 @@ function DocumentsGlobalView({ orderedActiveRooms, allRoomPresets, roomDocuments
           const docs = roomDocuments[key] || [];
           return (
             <div key={key} className="rounded-xl border border-black/10 bg-white p-4">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">{p?.label || key}</p>
+              <h3 className="mb-3 font-medium text-slate-900">{p?.label || key}</h3>
               <ul className="space-y-1.5">
                 {docs.map((doc) => (
                   <li key={doc.id} className="flex items-center gap-3 rounded-lg border border-black/10 bg-white px-3 py-2">
@@ -2588,7 +2588,7 @@ function DocumentsGlobalView({ orderedActiveRooms, allRoomPresets, roomDocuments
   );
 }
 
-function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussionsCache, onOpenThread }) {
+function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussionsCache, onOpenThread, mentionNotifications }) {
   const [filter, setFilter] = useState("open");
 
   const allRooms = ["general", ...orderedActiveRooms];
@@ -2597,9 +2597,14 @@ function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussions
     return acc + (discussionsCache[key] || []).filter((d) => d.status === "open").length;
   }, 0);
 
-  const isEmpty = allRooms.every(
-    (key) => ((discussionsCache?.[key] || []).filter((d) => filter === "all" || d.status === filter)).length === 0
-  );
+  const unreadMentionIds = new Set((mentionNotifications || []).filter(n => !n.read_at).map(n => n.discussion_id));
+  const unreadMentionsCount = unreadMentionIds.size;
+
+  const isEmpty = allRooms.every((key) => {
+    const discs = discussionsCache?.[key] || [];
+    if (filter === "mentions") return discs.filter(d => unreadMentionIds.has(d.id)).length === 0;
+    return discs.filter(d => filter === "all" || d.status === filter).length === 0;
+  });
 
   return (
     <div className="space-y-4">
@@ -2609,15 +2614,18 @@ function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussions
         <p className="mt-1 text-sm text-slate-600">
           {totalOpen > 0 ? `${totalOpen} fil${totalOpen > 1 ? "s" : ""} ouvert${totalOpen > 1 ? "s" : ""} dans toutes les pièces.` : "Aucun fil ouvert pour l'instant."}
         </p>
-        <div className="mt-3 flex gap-2">
-          {[{ key: "all", label: "Tout" }, { key: "open", label: "Ouverts" }, { key: "resolved", label: "Résolus" }].map(({ key, label }) => (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[{ key: "all", label: "Tout" }, { key: "open", label: "Ouverts" }, { key: "resolved", label: "Résolus" }, { key: "mentions", label: "Mes mentions", badge: unreadMentionsCount }].map(({ key, label, badge }) => (
             <button
               key={key}
               type="button"
               onClick={() => setFilter(key)}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${filter === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-white"}`}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${filter === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-white"}`}
             >
               {label}
+              {badge > 0 && (
+                <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${filter === key ? "bg-red-400 text-white" : "bg-red-500 text-white"}`}>{badge}</span>
+              )}
             </button>
           ))}
         </div>
@@ -2626,13 +2634,14 @@ function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussions
       {isEmpty ? (
         <div className="rounded-xl border border-dashed border-black/15 bg-white p-8 text-center">
           <p className="text-sm text-slate-400">
-            {filter === "all" ? "Aucune discussion pour l'instant." : `Aucun fil ${filter === "open" ? "ouvert" : "résolu"} pour l'instant.`}
+            {filter === "mentions" ? "Aucune mention non lue." : filter === "all" ? "Aucune discussion pour l'instant." : `Aucun fil ${filter === "open" ? "ouvert" : "résolu"} pour l'instant.`}
           </p>
         </div>
       ) : allRooms.map((roomKey) => {
-        const discussions = (discussionsCache?.[roomKey] || []).filter(
-          (d) => filter === "all" || d.status === filter
-        );
+        const discussions = (discussionsCache?.[roomKey] || []).filter((d) => {
+          if (filter === "mentions") return unreadMentionIds.has(d.id);
+          return filter === "all" || d.status === filter;
+        });
         if (discussions.length === 0) return null;
         return (
           <div key={roomKey} className="rounded-xl border border-black/10 bg-white p-4">
@@ -2817,9 +2826,10 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
     setMessages(prev => [...prev, { id: tempId, author_id: user?.id, author_name: authorName, author_avatar: authorAvatar, content, linked_image: linkedImage, created_at: new Date().toISOString(), is_deleted: false }]);
     setInput('');
     setLinkedImage(null);
+    setMentionedUserIds([]);
     setSending(true);
     try {
-      const r = await authedFetch('/api/save-room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'discussion-message', projectId, discussionId, content, linkedImage }) });
+      const r = await authedFetch('/api/save-room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'discussion-message', projectId, discussionId, content, linkedImage, mentionedUserIds: toMention }) });
       const { messageId } = await r.json();
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: messageId } : m));
     } catch {
@@ -2965,7 +2975,7 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
         {mention && mentionOptions.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 z-10 mx-4 mb-1 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
             {mentionOptions.slice(0, 5).map((opt) => (
-              <button key={opt.id} type="button" onClick={() => handleInsertMention(opt.name)}
+              <button key={opt.id} type="button" onClick={() => handleInsertMention(opt.name, mention.type === '@' ? opt.id : null)}
                 className="flex w-full items-center gap-2 border-b border-black/5 px-3 py-2.5 text-sm last:border-0 hover:bg-slate-50">
                 {mention.type === '@' && (opt.avatar
                   ? <img src={opt.avatar} alt="" className="h-5 w-5 rounded-full" />
@@ -3010,7 +3020,7 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
   );
 }
 
-function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, projectMembers, allRoomPresets, orderedActiveRooms, onNavigateToRoom, onDiscussionUpdate }) {
+function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, projectMembers, allRoomPresets, orderedActiveRooms, onNavigateToRoom, onDiscussionUpdate, onMarkMentionsRead }) {
   const [filter, setFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -3064,6 +3074,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
           onDiscussionUpdate?.(openThread.discussionId, patch);
         }}
         onNavigateToRoom={onNavigateToRoom}
+        onMarkMentionsRead={onMarkMentionsRead}
       />
     );
   }
@@ -5995,6 +6006,9 @@ export default function App() {
               { key: "discussions", label: "Discussions" },
             ].map(({ key, label }) => {
               const pending = key === "liste" ? roomPendingCount(room) : key === "discussions" ? (discussionsCache[room] || []).reduce((sum, d) => sum + (d.unread_count || 0), 0) : 0;
+              const mentionBadge = key === "discussions"
+                ? (mentionNotifications || []).filter(n => !n.read_at && (discussionsCache[room] || []).some(d => d.id === n.discussion_id)).length
+                : 0;
               return (
                 <button
                   key={key}
@@ -6005,7 +6019,9 @@ export default function App() {
                   }`}
                 >
                   {label}
-                  {pending > 0 ? (
+                  {mentionBadge > 0 ? (
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionBadge}</span>
+                  ) : pending > 0 ? (
                     <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{pending}</span>
                   ) : null}
                 </button>
@@ -6025,12 +6041,13 @@ export default function App() {
                 return acc + (discussionsCache[key] || []).reduce((sum, d) => sum + (d.unread_count || 0), 0);
               }, 0);
               const totalDocs = orderedActiveRooms.reduce((acc, key) => acc + (roomDocuments[key] || []).length, 0);
+              const totalMentionUnread = (mentionNotifications || []).filter(n => !n.read_at).length;
               return [
                 { key: "todos", label: "Todos", badge: totalPending },
                 { key: "couleurs", label: "Couleurs", badge: 0 },
-                { key: "discussions", label: "Discussions", badge: totalUnread },
+                { key: "discussions", label: "Discussions", badge: totalUnread, mentionBadge: totalMentionUnread },
                 { key: "ressources", label: "Ressources", badge: totalDocs },
-              ].map(({ key, label, badge }) => (
+              ].map(({ key, label, badge, mentionBadge }) => (
                 <button
                   key={key}
                   type="button"
@@ -6040,7 +6057,9 @@ export default function App() {
                   }`}
                 >
                   {label}
-                  {badge > 0 ? (
+                  {mentionBadge > 0 ? (
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionBadge}</span>
+                  ) : badge > 0 ? (
                     <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{badge}</span>
                   ) : null}
                 </button>
@@ -6110,12 +6129,42 @@ export default function App() {
               />
             </>
           ) : generalMode === "discussions" ? (
-            <DiscussionsGlobalView
-              orderedActiveRooms={orderedActiveRooms}
-              allRoomPresets={allRoomPresets}
-              discussionsCache={discussionsCache}
-              onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
-            />
+            <>
+              {openThread ? (
+                <DiscussionThread
+                  discussionId={openThread.discussionId}
+                  discussion={openThread.discussion}
+                  projectId={projectId}
+                  user={user}
+                  isOwner={isOwner}
+                  authedFetch={authedFetch}
+                  projectMembers={projectMembers}
+                  orderedActiveRooms={orderedActiveRooms}
+                  allRoomPresets={allRoomPresets}
+                  onClose={() => setOpenThread(null)}
+                  onDiscussionUpdate={(patch) => {
+                    setOpenThread(prev => prev ? { ...prev, discussion: { ...prev.discussion, ...patch } } : prev);
+                    setDiscussionsCache(prev => {
+                      const updated = { ...prev };
+                      for (const rk of Object.keys(updated)) {
+                        updated[rk] = (updated[rk] || []).map(d => d.id === openThread.discussionId ? { ...d, ...patch } : d);
+                      }
+                      return updated;
+                    });
+                  }}
+                  onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  onMarkMentionsRead={markMentionsRead}
+                />
+              ) : (
+                <DiscussionsGlobalView
+                  orderedActiveRooms={orderedActiveRooms}
+                  allRoomPresets={allRoomPresets}
+                  discussionsCache={discussionsCache}
+                  onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
+                  mentionNotifications={mentionNotifications}
+                />
+              )}
+            </>
           ) : (
             <DocumentsGlobalView
               orderedActiveRooms={orderedActiveRooms}
@@ -6411,6 +6460,7 @@ export default function App() {
                 return updated;
               });
             }}
+            onMarkMentionsRead={markMentionsRead}
           />
         ) : null}
 
