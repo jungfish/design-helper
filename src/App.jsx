@@ -4647,6 +4647,7 @@ export default function App() {
   const [copyInviteSuccess, setCopyInviteSuccess] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
+  const projectPickerRef = useRef(null);
 
   // ── Projet ────────────────────────────────────────────────────────────────
   const [room, setRoom] = useState("salon");
@@ -5358,6 +5359,51 @@ export default function App() {
     }
   };
 
+  const switchProject = (id) => {
+    [
+      UPLOAD_STORAGE_KEY, LINK_STORAGE_KEY, MATERIAL_UPLOAD_STORAGE_KEY,
+      MATERIAL_LINK_STORAGE_KEY, PLAN_UPLOAD_STORAGE_KEY, PLAN_LINK_STORAGE_KEY,
+      PLAN_EXTRA_STORAGE_KEY, MATERIAL_EXTRA_STORAGE_KEY, MATERIAL_META_STORAGE_KEY,
+      AI_INSPIRATIONS_STORAGE_KEY, IMAGE_ANALYSIS_STORAGE_KEY, DELETED_IMAGES_STORAGE_KEY,
+      INSTAGRAM_STORAGE_KEY, ROOM_LISTS_STORAGE_KEY, ROOM_DOCUMENTS_STORAGE_KEY,
+      ROOM_NUANCES_STORAGE_KEY, ROOM_NOTES_STORAGE_KEY, PROJECT_STATE_STORAGE_KEY,
+      HIDDEN_ROOMS_STORAGE_KEY, CUSTOM_ROOMS_STORAGE_KEY,
+    ].forEach(k => localStorage.removeItem(k));
+    setUploadedImages({});
+    setInspirationLinks({});
+    setMaterialUploads({});
+    setMaterialLinks({});
+    setPlanUploads({});
+    setPlanLinks({});
+    setExtraPlanImages({});
+    setExtraMaterialImages({});
+    setExtraMaterialMeta({});
+    setAiInspirations({});
+    setInstagramItems({});
+    setImageAnalysis({});
+    setDeletedImages({});
+    setRoomNuances({});
+    setRoomNotes({});
+    setRoomLists({});
+    setRoomDocuments({});
+    setHiddenRooms([]);
+    setCustomRooms([]);
+    setProjectId(id);
+    localStorage.setItem(PROJECT_ID_STORAGE_KEY, id);
+    window.history.replaceState({}, "", `/?p=${id}`);
+    setShowProjectPicker(false);
+    setLoadingFromUrl(true);
+    authedFetch(`${API_BASE}/load-project?id=${encodeURIComponent(id)}&t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(({ projectConfig, isOwner: owner, inviteCode: code, roomItems, chatMessages, roomNotesNormalized, roomDocumentsNormalized, roomNuancesNormalized, roomMediaNormalized }) => {
+        if (projectConfig) hydrateState({ projectConfig, roomItems, chatMessages, roomNotesNormalized, roomDocumentsNormalized, roomNuancesNormalized, roomMediaNormalized });
+        if (typeof owner === "boolean") setIsOwner(owner);
+        if (code) setInviteCode(code);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingFromUrl(false));
+  };
+
   const handleCreateSnapshot = async (label) => {
     setIsSavingSnapshot(true);
     await saveProject({ snapshot: true, snapshotLabel: label });
@@ -5626,6 +5672,15 @@ export default function App() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showUserMenu]);
+
+  useEffect(() => {
+    if (!showProjectPicker) return;
+    const handler = (e) => {
+      if (projectPickerRef.current && !projectPickerRef.current.contains(e.target)) setShowProjectPicker(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showProjectPicker]);
 
   useEffect(() => {
     safelyStore(CUSTOM_ROOMS_STORAGE_KEY, customRooms);
@@ -5999,9 +6054,15 @@ export default function App() {
         </div>
         <div className="flex-shrink-0 border-t border-black/[0.08] bg-[#F2EFE7]">
           {/* Project switcher */}
-          <div className="border-b border-black/[0.06] px-2 py-1.5">
+          <div className="relative border-b border-black/[0.06] px-2 py-1.5" ref={projectPickerRef}>
             <button
               type="button"
+              onClick={() => {
+                if (userProjectCount > 1) {
+                  loadUserProjects();
+                  setShowProjectPicker(v => !v);
+                }
+              }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-[7px] text-left transition-colors hover:bg-black/[0.04]"
             >
               <div
@@ -6015,6 +6076,31 @@ export default function App() {
                 </svg>
               )}
             </button>
+            {showProjectPicker && userProjects.length > 0 && (
+              <div className="absolute bottom-full left-2 right-2 mb-1 overflow-hidden rounded-lg border border-black/[0.08] bg-white shadow-lg">
+                {userProjects.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => switchProject(p.id)}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[12.5px] transition-colors hover:bg-[#F5F3EE]"
+                  >
+                    <div
+                      className="h-4 w-4 flex-shrink-0 rounded-[3px]"
+                      style={{ background: p.id === projectId ? "linear-gradient(135deg,#CDAA73 10%,#A8B5A2 90%)" : "#E0DDD7" }}
+                    />
+                    <span className={`flex-1 truncate ${p.id === projectId ? "font-semibold text-[#1C1A17]" : "text-[#4D4A47]"}`}>
+                      {p.name || "Sans titre"}
+                    </span>
+                    {p.id === projectId && (
+                      <svg className="h-3 w-3 flex-shrink-0 text-[#A8B5A2]" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 6l3 3 5-5" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {/* Membres */}
           <div className="border-b border-black/[0.06] px-2 py-1.5">
