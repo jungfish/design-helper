@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { RoomViewer3D } from "./RoomViewer3D";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./useAuth";
-import { OnboardingWizard } from "./OnboardingWizard";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -4048,28 +4047,119 @@ function DocumentsSection({ room, roomDocuments, setRoomDocuments, projectId, sa
   );
 }
 
-function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn }) {
+// ─── Helpers personnes / dates ───────────────────────────────────────────────
+
+const PERSON_PALETTE = ["#e8937a","#7ab4e8","#82d9a7","#d97ab4","#a87ae8","#e8c87a","#7ae8d4","#e87a7a"];
+function personColor(name) {
+  let h = 0; for (const c of (name || "?")) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PERSON_PALETTE[h % PERSON_PALETTE.length];
+}
+function personInitials(name) {
+  return (name || "?").trim().split(/\s+/).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+}
+function formatDueDate(d) {
+  if (!d) return "";
+  const [y, m, day] = d.split("-").map(Number);
+  const months = ["jan","fév","mar","avr","mai","juin","juil","aoû","sep","oct","nov","déc"];
+  return new Date().getFullYear() === y ? `${day} ${months[m-1]}` : `${day} ${months[m-1]} ${y}`;
+}
+function isDueOverdue(d) { return !!d && d < new Date().toISOString().split("T")[0]; }
+function isDueSoonDate(d) { if (!d) return false; const diff = (new Date(d) - new Date()) / 86400000; return diff >= 0 && diff <= 3; }
+
+function PersonPicker({ allPersons, value, onSelect, onCreatePerson, onClose }) {
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [onClose]);
+
+  const filtered = (allPersons || []).filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
+  const exactMatch = (allPersons || []).some(p => p.name.toLowerCase() === q.trim().toLowerCase());
+
+  return (
+    <div ref={ref} className="absolute z-50 w-52 rounded-xl border border-black/10 bg-white py-1 shadow-xl" style={{ top: "calc(100% + 4px)", left: 0 }}>
+      <div className="px-2 pb-1">
+        <input autoFocus value={q}
+          onChange={e => setQ(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && q.trim()) { if (exactMatch) { onSelect(filtered[0]?.name || q.trim()); onClose(); } else { onCreatePerson(q.trim()); onClose(); } }
+            if (e.key === "Escape") onClose();
+          }}
+          placeholder="Rechercher…"
+          className="w-full rounded-md border border-black/10 px-2 py-1 text-xs outline-none focus:border-black/25"
+        />
+      </div>
+      <div className="max-h-40 overflow-y-auto">
+        {filtered.length === 0 && !q.trim() && (
+          <div className="px-3 py-2 text-xs text-slate-400">Aucune personne pour l'instant.</div>
+        )}
+        {filtered.map(p => (
+          <button key={p.id} type="button" onClick={() => { onSelect(p.name); onClose(); }}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 ${value === p.name ? "bg-slate-50" : ""}`}>
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: personColor(p.name) }}>{personInitials(p.name)}</span>
+            <span className="min-w-0 flex-1 truncate text-xs">{p.name}</span>
+            {value === p.name && <span className="text-xs text-slate-400">✓</span>}
+          </button>
+        ))}
+        {q.trim() && !exactMatch && (
+          <button type="button" onClick={() => { onCreatePerson(q.trim()); onClose(); }}
+            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 hover:bg-slate-50">
+            <span className="text-sm font-medium">+</span> Créer « {q.trim()} »
+          </button>
+        )}
+      </div>
+      {value && (
+        <div className="border-t border-black/5 px-2 pt-1">
+          <button type="button" onClick={() => { onSelect(""); onClose(); }}
+            className="w-full rounded px-2 py-1 text-center text-xs text-slate-400 hover:bg-slate-50">Retirer</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Section listes (tâches + courses) ───────────────────────────────────────
+
+function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn, projectMembers = [], persons = [], setPersons, savePersonsFn }) {
   const [shopInput, setShopInput] = useState("");
   const [todoInput, setTodoInput] = useState("");
   const [linkMode, setLinkMode] = useState({ shopping: false, todos: false });
   const [linkInput, setLinkInput] = useState({ shopping: { label: "", url: "" }, todos: { label: "", url: "" } });
+  const [newMeta, setNewMeta] = useState({ shopping: { dueDate: "", assignee: "" }, todos: { dueDate: "", assignee: "" } });
+  const [openPicker, setOpenPicker] = useState(null);
+  const [editingDate, setEditingDate] = useState(null);
 
   const list = roomLists[room] || {};
   const shopping = list.shopping || [];
   const todos = list.todos || [];
 
+  const allPersons = [
+    ...(projectMembers).map(m => ({ id: m.id, name: m.name })),
+    ...(persons).map(p => ({ id: p.id, name: p.name })),
+  ].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i);
+
+  const createPerson = (name) => {
+    const newPerson = { id: `person-${Date.now()}`, name };
+    const updated = [...persons, newPerson];
+    setPersons(updated);
+    if (savePersonsFn && projectId) savePersonsFn(projectId, updated);
+  };
+
   const addItem = async (listKey, text, setter) => {
     if (!text.trim()) return;
+    const { dueDate, assignee } = newMeta[listKey];
     const id = `${listKey}-${Date.now()}`;
     const urlMatch = text.trim().match(/https?:\/\/[^\s]+/);
     const url = urlMatch ? urlMatch[0] : null;
-    const newItem = { id, text: text.trim(), url: url || undefined, done: false, ...(url ? { previewLoading: true } : {}) };
+    const newItem = { id, text: text.trim(), url: url || undefined, done: false,
+      ...(url ? { previewLoading: true } : {}),
+      ...(dueDate ? { dueDate } : {}), ...(assignee ? { assignee } : {}) };
+    setNewMeta(prev => ({ ...prev, [listKey]: { dueDate: "", assignee: "" } }));
     const currentItems = (roomLists[room] || {})[listKey] || [];
     const newItems = [...currentItems, newItem];
-    setRoomLists((prev) => ({
-      ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: newItems },
-    }));
+    setRoomLists((prev) => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
     setter("");
     if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
     if (url) {
@@ -4098,36 +4188,37 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
   const toggleItem = (listKey, id) => {
     const currentItems = (roomLists[room] || {})[listKey] || [];
     const newItems = currentItems.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
-    setRoomLists((prev) => ({
-      ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: newItems },
-    }));
+    setRoomLists((prev) => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
     if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
   };
 
   const removeItem = (listKey, id) => {
     const currentItems = (roomLists[room] || {})[listKey] || [];
     const newItems = currentItems.filter((item) => item.id !== id);
-    setRoomLists((prev) => ({
-      ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: newItems },
-    }));
+    setRoomLists((prev) => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
+    if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
+  };
+
+  const updateItemMeta = (listKey, id, patch) => {
+    const currentItems = (roomLists[room] || {})[listKey] || [];
+    const newItems = currentItems.map(item => item.id === id ? { ...item, ...patch } : item);
+    setRoomLists(prev => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
     if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
   };
 
   const addLinkItem = async (listKey) => {
     const { label: lbl, url } = linkInput[listKey];
     if (!url.trim()) return;
+    const { dueDate, assignee } = newMeta[listKey];
     const id = `${listKey}-${Date.now()}`;
     setLinkInput((prev) => ({ ...prev, [listKey]: { label: "", url: "" } }));
     setLinkMode((prev) => ({ ...prev, [listKey]: false }));
+    setNewMeta(prev => ({ ...prev, [listKey]: { dueDate: "", assignee: "" } }));
     const currentItems = (roomLists[room] || {})[listKey] || [];
-    const newItem = { id, text: lbl.trim() || url.trim(), url: url.trim(), done: false, previewLoading: true };
+    const newItem = { id, text: lbl.trim() || url.trim(), url: url.trim(), done: false, previewLoading: true,
+      ...(dueDate ? { dueDate } : {}), ...(assignee ? { assignee } : {}) };
     const newItems = [...currentItems, newItem];
-    setRoomLists((prev) => ({
-      ...prev,
-      [room]: { ...(prev[room] || {}), [listKey]: newItems },
-    }));
+    setRoomLists((prev) => ({ ...prev, [room]: { ...(prev[room] || {}), [listKey]: newItems } }));
     if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, listKey, newItems);
     try {
       const preview = await fetchLinkPreview(url.trim());
@@ -4153,6 +4244,8 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
   const renderList = (listKey, items, input, setInput, title, eyebrow, placeholder) => {
     const pending = items.filter((i) => !i.done);
     const done = items.filter((i) => i.done);
+    const meta = newMeta[listKey];
+    const pickerKey = `new-${listKey}`;
     return (
       <div className="space-y-3">
         <div>
@@ -4162,87 +4255,92 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
         {linkMode[listKey] ? (
           <div className="space-y-2">
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={linkInput[listKey].label}
+              <input type="text" value={linkInput[listKey].label}
                 onChange={(e) => setLinkInput((prev) => ({ ...prev, [listKey]: { ...prev[listKey], label: e.target.value } }))}
                 onKeyDown={(e) => { if (e.key === "Enter") addLinkItem(listKey); }}
-                placeholder="Nom du lien…"
-                className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
-              />
-              <input
-                type="url"
-                value={linkInput[listKey].url}
+                placeholder="Nom du lien…" className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm" />
+              <input type="url" value={linkInput[listKey].url}
                 onChange={(e) => setLinkInput((prev) => ({ ...prev, [listKey]: { ...prev[listKey], url: e.target.value } }))}
                 onKeyDown={(e) => { if (e.key === "Enter") addLinkItem(listKey); }}
-                placeholder="https://…"
-                className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => addLinkItem(listKey)}
-                disabled={!linkInput[listKey].url.trim()}
-                className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-              >
-                Ajouter
-              </button>
+                placeholder="https://…" className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm" />
+              <button type="button" onClick={() => addLinkItem(listKey)} disabled={!linkInput[listKey].url.trim()}
+                className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40">Ajouter</button>
             </div>
-            <button
-              type="button"
-              onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: false }))}
-              className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m15 18-6-6 6-6"/>
-              </svg>
+            <button type="button" onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: false }))}
+              className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
               Texte libre
             </button>
           </div>
         ) : (
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
+            <input type="text" value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addItem(listKey, input, setInput); }}
-              placeholder={placeholder}
-              className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: true }))}
+              placeholder={placeholder} className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 text-sm" />
+            <button type="button" onClick={() => setLinkMode((prev) => ({ ...prev, [listKey]: true }))}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black/15 bg-white text-slate-500 hover:bg-slate-50"
-              title="Ajouter un lien avec un nom"
-              aria-label="Ajouter un lien avec un nom"
-            >
+              title="Ajouter un lien avec un nom" aria-label="Ajouter un lien avec un nom">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
             </button>
-            <button
-              type="button"
-              onClick={() => addItem(listKey, input, setInput)}
-              className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-            >
-              Ajouter
-            </button>
+            <button type="button" onClick={() => addItem(listKey, input, setInput)}
+              className="shrink-0 rounded-md border border-black/15 bg-slate-900 px-4 py-2 text-sm font-medium text-white">Ajouter</button>
           </div>
         )}
+        {/* Options optionnelles : échéance + assigné */}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-black/8 bg-slate-50 px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span className={meta.dueDate ? (isDueOverdue(meta.dueDate) ? "font-medium text-red-500" : isDueSoonDate(meta.dueDate) ? "font-medium text-amber-600" : "font-medium text-slate-700") : ""}>
+              {meta.dueDate ? formatDueDate(meta.dueDate) : "Échéance"}
+            </span>
+            <input type="date" value={meta.dueDate}
+              onChange={e => setNewMeta(prev => ({ ...prev, [listKey]: { ...prev[listKey], dueDate: e.target.value } }))}
+              className="sr-only" />
+          </label>
+          {meta.dueDate && (
+            <button type="button" onClick={() => setNewMeta(prev => ({ ...prev, [listKey]: { ...prev[listKey], dueDate: "" } }))}
+              className="text-xs leading-none text-slate-300 hover:text-slate-500">×</button>
+          )}
+          <div className="relative">
+            <button type="button" onClick={() => setOpenPicker(openPicker === pickerKey ? null : pickerKey)}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${meta.assignee ? "border-slate-700 bg-slate-800 text-white" : "border-black/8 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+              {meta.assignee ? (
+                <>
+                  <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full bg-white/20 text-[7px] font-bold">{personInitials(meta.assignee)}</span>
+                  {meta.assignee}
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+                  Assigné à
+                </>
+              )}
+            </button>
+            {openPicker === pickerKey && (
+              <PersonPicker allPersons={allPersons} value={meta.assignee}
+                onSelect={name => setNewMeta(prev => ({ ...prev, [listKey]: { ...prev[listKey], assignee: name } }))}
+                onCreatePerson={name => { createPerson(name); setNewMeta(prev => ({ ...prev, [listKey]: { ...prev[listKey], assignee: name } })); }}
+                onClose={() => setOpenPicker(null)} />
+            )}
+          </div>
+          {meta.assignee && (
+            <button type="button" onClick={() => setNewMeta(prev => ({ ...prev, [listKey]: { ...prev[listKey], assignee: "" } }))}
+              className="text-xs leading-none text-slate-300 hover:text-slate-500">×</button>
+          )}
+        </div>
         {items.length === 0 ? (
           <div className="py-8 text-center text-sm text-slate-400">Aucun élément pour l'instant.</div>
         ) : (
           <ul className="space-y-1.5">
             {[...pending, ...done].map((item) => (
-              <li
-                key={item.id}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleItem(listKey, item.id)}
-                  className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}
-                >
+              <li key={item.id}
+                className={`group flex items-center gap-2 rounded-lg border px-3 py-2 ${item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}>
+                <button type="button" onClick={() => toggleItem(listKey, item.id)}
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}>
                   {item.done ? "✓" : ""}
                 </button>
                 {item.url ? (
@@ -4250,13 +4348,47 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
                 ) : (
                   <span className={`min-w-0 flex-1 text-sm ${item.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{item.text}</span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => removeItem(listKey, item.id)}
-                  className="shrink-0 px-1 text-slate-300 hover:text-slate-600"
-                >
-                  ×
-                </button>
+                {/* Badge échéance */}
+                {editingDate === item.id ? (
+                  <input type="date" autoFocus value={item.dueDate || ""}
+                    onChange={e => updateItemMeta(listKey, item.id, { dueDate: e.target.value || undefined })}
+                    onBlur={() => setEditingDate(null)}
+                    className="w-28 shrink-0 rounded border border-black/15 px-1 py-0.5 text-xs outline-none" />
+                ) : item.dueDate ? (
+                  <button type="button" onClick={() => setEditingDate(item.id)} title="Modifier l'échéance"
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${isDueOverdue(item.dueDate) ? "bg-red-50 text-red-500" : isDueSoonDate(item.dueDate) ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>
+                    {formatDueDate(item.dueDate)}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setEditingDate(item.id)} title="Ajouter une échéance"
+                    className="hidden h-5 w-5 shrink-0 place-items-center rounded-full text-slate-300 hover:bg-slate-50 hover:text-slate-500 group-hover:grid">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                )}
+                {/* Badge assigné */}
+                <div className="relative shrink-0">
+                  {item.assignee ? (
+                    <button type="button"
+                      onClick={() => setOpenPicker(openPicker === `item-${item.id}` ? null : `item-${item.id}`)}
+                      className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white"
+                      style={{ background: personColor(item.assignee) }} title={item.assignee}>
+                      {personInitials(item.assignee)}
+                    </button>
+                  ) : (
+                    <button type="button"
+                      onClick={() => setOpenPicker(openPicker === `item-${item.id}` ? null : `item-${item.id}`)}
+                      className="hidden h-5 w-5 place-items-center rounded-full border border-dashed border-slate-300 text-[9px] text-slate-300 hover:border-slate-400 hover:text-slate-400 group-hover:grid"
+                      title="Assigner">+</button>
+                  )}
+                  {openPicker === `item-${item.id}` && (
+                    <PersonPicker allPersons={allPersons} value={item.assignee || ""}
+                      onSelect={name => updateItemMeta(listKey, item.id, { assignee: name || undefined })}
+                      onCreatePerson={name => { createPerson(name); updateItemMeta(listKey, item.id, { assignee: name }); }}
+                      onClose={() => setOpenPicker(null)} />
+                  )}
+                </div>
+                <button type="button" onClick={() => removeItem(listKey, item.id)}
+                  className="shrink-0 px-1 text-slate-300 hover:text-slate-600">×</button>
               </li>
             ))}
           </ul>
@@ -4634,13 +4766,12 @@ function LoginScreen({ onSignIn }) {
 // ─── Écran rejoindre ou créer un appartement ─────────────────────────────────
 
 function JoinOrCreateScreen({ user, onJoin, onCreateNew, signOut }) {
-  const inviteParam = new URLSearchParams(window.location.search).get("invite") || "";
-  const [code, setCode] = useState(inviteParam);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleJoin = async (overrideCode) => {
-    const cleaned = (overrideCode ?? code).trim().toLowerCase();
+  const handleJoin = async () => {
+    const cleaned = code.trim().toLowerCase();
     if (!cleaned) return;
     setLoading(true);
     setError("");
@@ -4651,10 +4782,6 @@ function JoinOrCreateScreen({ user, onJoin, onCreateNew, signOut }) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (inviteParam) handleJoin(inviteParam);
-  }, []);
 
   return (
     <div className="min-h-screen bg-[#FAF6F0] flex flex-col items-center justify-center p-6">
@@ -5610,11 +5737,33 @@ export default function App() {
     if (data) setUserProjects(data.map(r => ({ id: r.projects.id, name: r.projects.name, role: r.role })));
   };
 
-  // Détecter si l'utilisateur est nouveau (pas encore de projets) → afficher l'onboarding
+  // Détecter le projet à charger au démarrage
   useEffect(() => {
     if (!user?.id || projectId || !import.meta.env.VITE_SUPABASE_URL) return;
-    supabase.from("project_members").select("project_id", { count: "exact", head: true }).eq("user_id", user.id)
-      .then(({ count }) => setShowOnboarding(count === 0));
+
+    const inviteParam = new URLSearchParams(window.location.search).get("invite");
+    if (inviteParam) {
+      handleJoinProject(inviteParam).then((result) => {
+        if (!result?.ok) {
+          window.history.replaceState({}, "", "/");
+          setShowOnboarding(true);
+        }
+      });
+      return;
+    }
+
+    supabase
+      .from("project_members")
+      .select("project_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .then(({ data }) => {
+        if (data?.length) {
+          switchProject(data[0].project_id);
+        } else {
+          setShowOnboarding(true);
+        }
+      });
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Charger les membres du projet pour les @mentions
@@ -5723,27 +5872,12 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#FAF6F0]" />;
   if (!user) return <LoginScreen onSignIn={signInWithGoogle} />;
   if (!projectId) {
-    if (showOnboarding === null) return <div className="min-h-screen bg-[#FAF6F0]" />;
-    if (showOnboarding) {
-      return (
-        <OnboardingWizard
-          user={user}
-          session={session}
-          onComplete={(id) => {
-            setShowOnboarding(false);
-            switchProject(id);
-          }}
-          onJoinProject={handleJoinProject}
-          onSkip={() => setShowOnboarding(false)}
-          signOut={signOut}
-        />
-      );
-    }
+    if (!showOnboarding) return <div className="min-h-screen bg-[#FAF6F0]" />;
     return (
       <JoinOrCreateScreen
         user={user}
         onJoin={handleJoinProject}
-        onCreateNew={() => saveProject()}
+        onCreateNew={handleCreateNewProject}
         signOut={signOut}
       />
     );

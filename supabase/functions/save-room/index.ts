@@ -39,6 +39,8 @@ Deno.serve(async (req) => {
         image: typeof item.image === "string" && item.image.startsWith("data:") ? null : (item.image || null),
         preview_title: item.previewTitle || null,
         position: idx,
+        due_date: item.dueDate || null,
+        assignee: item.assignee || null,
       }));
 
       const ids = rows.map((r) => r.id).filter(Boolean) as string[];
@@ -52,6 +54,20 @@ Deno.serve(async (req) => {
         const { error: upsertErr } = await supabase.from("room_items").upsert(rows, { onConflict: "id" });
         if (upsertErr) throw new Error(upsertErr.message);
       }
+      return corsResponse(200, { ok: true });
+    }
+
+    // --- save-persons ---
+    if (action === "save-persons" && req.method === "POST") {
+      const { projectId, persons } = body;
+      if (!projectId || !Array.isArray(persons))
+        return corsResponse(400, { error: "projectId et persons requis." });
+
+      const { data: member } = await supabase.from("project_members").select("role").eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
+      if (!member) return corsResponse(403, { error: "Accès refusé." });
+
+      const { error } = await supabase.from("projects").update({ persons }).eq("id", projectId);
+      if (error) throw new Error(error.message);
       return corsResponse(200, { ok: true });
     }
 
