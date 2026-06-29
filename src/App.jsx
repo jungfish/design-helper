@@ -2586,7 +2586,7 @@ function renderMessageContent(content) {
   });
 }
 
-function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn }) {
+function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, onClose }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -2815,24 +2815,38 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
   const visibleImages = (roomImages || []).filter((img) => img.src && !isPdfUrl(img.src));
 
   return (
-    <div className="rounded-xl border border-black/10 bg-white">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between border-b border-black/10 p-4">
         <div>
           <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Assistant</p>
           <h3 className="type-h3">Chat IA — {aiContext.roomLabel}</h3>
         </div>
-        {messages.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setChatHistory((prev) => ({ ...prev, [room]: [] }))}
-            className="text-xs text-slate-400 hover:text-slate-600"
-          >
-            Effacer
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setChatHistory((prev) => ({ ...prev, [room]: [] }))}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              Effacer
+            </button>
+          ) : null}
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              aria-label="Fermer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="h-[420px] overflow-y-auto space-y-3 p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-4">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-slate-400">
             <span className="text-3xl">✦</span>
@@ -3484,28 +3498,214 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
 
 // ─── Écran de connexion SSO ──────────────────────────────────────────────────
 
+const LOGIN_PREVIEWS = [
+  {
+    src: "/images/Salon.JPG",
+    label: "Salon",
+    line: "Ambiance rétro lumineuse, bibliothèque colorée et tons bleu clair.",
+    swatches: [
+      { name: "Bleu clair grisé", hex: "#b8c9d0" },
+      { name: "Crème chaud", hex: "#F4F1EA" },
+      { name: "Chêne clair", hex: "#D0AA6C" },
+    ],
+  },
+  {
+    src: "/images/Bureau.JPG",
+    label: "Bureau",
+    line: "Espace calme et concentré, bleu doux et bois chaleureux.",
+    swatches: [
+      { name: "Bleu clair grisé", hex: "#9fb7bf" },
+      { name: "Chêne clair", hex: "#D0AA6C" },
+      { name: "Olive doux", hex: "#B7C3A5" },
+    ],
+  },
+  {
+    src: "/images/Chambre%20parent.JPG",
+    label: "Chambre parents",
+    line: "Chambre douce et colorée par touches structurées.",
+    swatches: [
+      { name: "Vert sauge", hex: "#A8B5A2" },
+      { name: "Crème chaud", hex: "#F4F1EA" },
+      { name: "Chêne clair", hex: "#D0AA6C" },
+    ],
+  },
+  {
+    src: "/images/Terasse.JPG",
+    label: "Terrasse",
+    line: "Extérieur lumineux, matières naturelles et palette douce.",
+    swatches: [
+      { name: "Vert sauge", hex: "#7A8F7A" },
+      { name: "Crème chaud", hex: "#E8DFD3" },
+      { name: "Chêne clair", hex: "#B98945" },
+    ],
+  },
+];
+
 function LoginScreen({ onSignIn }) {
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setSlide((p) => (p + 1) % LOGIN_PREVIEWS.length), 4500);
+    return () => clearInterval(id);
+  }, []);
+
+  const current = LOGIN_PREVIEWS[slide];
+
   return (
-    <div className="min-h-screen bg-[#FAF6F0] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="font-sans text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 mb-3">Palette appartement</p>
-          <h1 className="text-2xl font-semibold text-slate-900 leading-tight">Bienvenue</h1>
-          <p className="mt-2 text-sm text-slate-500">Connectez-vous pour accéder à votre espace de design.</p>
+    <div className="flex min-h-screen bg-[#FAF6F0]">
+      {/* ── Left: Login form ──────────────────────────────────── */}
+      <div className="flex w-full flex-col items-center justify-center p-8 lg:w-[440px] lg:shrink-0 lg:p-14">
+        <div className="w-full max-w-[300px]">
+          {/* Brand */}
+          <div className="mb-10">
+            <div className="mb-5 flex gap-0.5 overflow-hidden rounded-md">
+              {["#b8c9d0", "#A8B5A2", "#D0AA6C", "#FAF6F0"].map((hex, i) => (
+                <div
+                  key={hex}
+                  className="h-2 flex-1"
+                  style={{ backgroundColor: hex, boxShadow: i === 3 ? "inset 0 0 0 1px rgba(0,0,0,0.08)" : "none" }}
+                />
+              ))}
+            </div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+              Palette appartement
+            </p>
+            <h1 className="text-[26px] font-semibold leading-snug text-slate-900">
+              Votre projet déco,<br />organisé pièce par pièce.
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Palette de couleurs, inspirations, matériaux et plans — tout au même endroit.
+            </p>
+          </div>
+
+          {/* Feature list */}
+          <div className="mb-8 space-y-3">
+            {[
+              {
+                svg: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                  </svg>
+                ),
+                text: "Palette de couleurs par pièce",
+              },
+              {
+                svg: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                  </svg>
+                ),
+                text: "Propositions IA sur vos photos",
+              },
+              {
+                svg: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                ),
+                text: "Inspirations, matériaux & plans",
+              },
+            ].map(({ svg, text }) => (
+              <div key={text} className="flex items-center gap-3 text-sm text-slate-600">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-slate-400 shadow-sm">
+                  {svg}
+                </div>
+                {text}
+              </div>
+            ))}
+          </div>
+
+          {/* Google CTA */}
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-black/12 bg-white px-5 py-3.5 text-sm font-medium text-slate-800 shadow-sm transition-colors hover:bg-slate-50 active:bg-slate-100"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continuer avec Google
+          </button>
+          <p className="mt-4 text-center text-xs text-slate-400">Accès réservé aux membres du projet.</p>
         </div>
-        <button
-          onClick={onSignIn}
-          className="w-full flex items-center justify-center gap-3 rounded-xl border border-black/12 bg-white px-5 py-3.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 active:bg-slate-100 transition-colors"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Continuer avec Google
-        </button>
-        <p className="mt-6 text-center text-xs text-slate-400">Accès réservé aux membres du projet.</p>
+      </div>
+
+      {/* ── Right: App preview (desktop only) ─────────────────── */}
+      <div className="relative hidden flex-1 overflow-hidden lg:block">
+        {/* Background images with crossfade */}
+        {LOGIN_PREVIEWS.map((p, i) => (
+          <img
+            key={p.src}
+            src={p.src}
+            alt={p.label}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ opacity: i === slide ? 1 : 0, transition: "opacity 0.9s ease-in-out" }}
+          />
+        ))}
+
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-slate-950/10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/15 to-transparent" />
+
+        {/* Top-right feature badges */}
+        <div className="absolute right-7 top-8 flex flex-col items-end gap-2">
+          {["Palette IA", "Inspirations", "Plans & Matériaux"].map((badge) => (
+            <div
+              key={badge}
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/70 backdrop-blur-md"
+            >
+              <div className="h-1.5 w-1.5 rounded-full bg-[#A8B5A2]" />
+              {badge}
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom: palette card + slide indicators */}
+        <div className="absolute bottom-8 left-8 right-8 flex items-end gap-4">
+          <div className="flex-1 rounded-2xl border border-white/15 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
+            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/50">
+              Pièce en cours
+            </p>
+            <p className="mb-3 text-base font-semibold text-white">{current.label}</p>
+            <div className="flex gap-2.5">
+              {current.swatches.map((swatch) => (
+                <div key={swatch.hex} className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="h-9 w-9 rounded-lg shadow-md ring-1 ring-white/20"
+                    style={{ backgroundColor: swatch.hex }}
+                  />
+                  <span className="font-mono text-[9px] text-white/40">{swatch.hex}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-white/50">{current.line}</p>
+          </div>
+
+          {/* Vertical slide indicators */}
+          <div className="flex flex-col items-center gap-1.5 pb-2">
+            {LOGIN_PREVIEWS.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSlide(i)}
+                aria-label={`Voir ${LOGIN_PREVIEWS[i].label}`}
+                className={`cursor-pointer rounded-full transition-all duration-300 ${
+                  i === slide ? "h-6 w-1.5 bg-white" : "h-1.5 w-1.5 bg-white/30 hover:bg-white/60"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -3873,6 +4073,7 @@ export default function App() {
   };
   const [lightbox, setLightbox] = useState(null);
   const [show3D, setShow3D] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [roomLists, setRoomLists] = useState(() => {
     try {
       const raw = localStorage.getItem(ROOM_LISTS_STORAGE_KEY);
@@ -4938,7 +5139,6 @@ export default function App() {
               { key: "inspirations", label: "Inspirations" },
               { key: "couleurs", label: "Couleurs" },
               { key: "liste", label: "Liste" },
-              { key: "chat", label: "Chat IA" },
             ].map(({ key, label }) => {
               const pending = key === "liste" ? roomPendingCount(room) : 0;
               return (
@@ -5296,26 +5496,7 @@ export default function App() {
               deleteDocFn={deleteRoomDocumentFromServer}
             />
           </div>
-        ) : (
-          <ChatPanel
-            room={room}
-            aiContext={aiContext}
-            chatHistory={chatHistory}
-            setChatHistory={setChatHistory}
-            setRoomLists={setRoomLists}
-            setRoomNotes={setRoomNotes}
-            projectId={projectId}
-            saveMessageFn={saveChatMessageToServer}
-            saveNoteFn={saveRoomNoteToServer}
-            roomImages={[
-              ...(roomPlanImages[room] || []).map((src, i) => ({ src: planUploads[`${room}-plan-${i}`] || src, key: `${room}-plan-${i}` })),
-              ...(extraPlanImages[room] || []).map((src, i) => ({ src, key: `${room}-plan-extra-${i}` })),
-              ...(roomInspirationImages[room] || []).map((src, i) => ({ src: uploadedImages[`${room}-${i}`] || src, key: `${room}-${i}` })),
-              ...(materialsByRoom[room] || []).map((m, i) => ({ src: materialUploads[`${room}-material-${i}`] || m.src, key: `${room}-material-${i}` })),
-              ...(aiInspirations[room] || []).map((src, i) => ({ src, key: `${room}-ai-${i}` })),
-            ].filter((img) => img.src && !deletedImages[img.key])}
-          />
-        )}
+        ) : null}
 
         {lightbox ? <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} /> : null}
         {show3D ? (
@@ -5329,6 +5510,55 @@ export default function App() {
           />
         ) : null}
       </main>
+      {createPortal(
+        <>
+          <button
+            type="button"
+            onClick={() => setIsChatOpen((v) => !v)}
+            className={`fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-colors ${
+              isChatOpen ? "bg-slate-700 text-white" : "bg-slate-900 text-white hover:bg-slate-700"
+            }`}
+            aria-label="Chat IA"
+          >
+            {isChatOpen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+              </svg>
+            )}
+          </button>
+          {isChatOpen ? (
+            <div className="fixed inset-0 z-50 flex items-start justify-end">
+              <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setIsChatOpen(false)} />
+              <div className="relative h-full w-full max-w-sm bg-white shadow-2xl flex flex-col">
+                <ChatPanel
+                  room={room}
+                  aiContext={aiContext}
+                  chatHistory={chatHistory}
+                  setChatHistory={setChatHistory}
+                  setRoomLists={setRoomLists}
+                  setRoomNotes={setRoomNotes}
+                  projectId={projectId}
+                  saveMessageFn={saveChatMessageToServer}
+                  saveNoteFn={saveRoomNoteToServer}
+                  onClose={() => setIsChatOpen(false)}
+                  roomImages={[
+                    ...(roomPlanImages[room] || []).map((src, i) => ({ src: planUploads[`${room}-plan-${i}`] || src, key: `${room}-plan-${i}` })),
+                    ...(extraPlanImages[room] || []).map((src, i) => ({ src, key: `${room}-plan-extra-${i}` })),
+                    ...(roomInspirationImages[room] || []).map((src, i) => ({ src: uploadedImages[`${room}-${i}`] || src, key: `${room}-${i}` })),
+                    ...(materialsByRoom[room] || []).map((m, i) => ({ src: materialUploads[`${room}-material-${i}`] || m.src, key: `${room}-material-${i}` })),
+                    ...(aiInspirations[room] || []).map((src, i) => ({ src, key: `${room}-ai-${i}` })),
+                  ].filter((img) => img.src && !deletedImages[img.key])}
+                />
+              </div>
+            </div>
+          ) : null}
+        </>,
+        document.body
+      )}
     </div>
   );
 }
