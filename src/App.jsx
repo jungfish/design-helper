@@ -4296,6 +4296,63 @@ function formatDueDate(d) {
 function isDueOverdue(d) { return !!d && d < new Date().toISOString().split("T")[0]; }
 function isDueSoonDate(d) { if (!d) return false; const diff = (new Date(d) - new Date()) / 86400000; return diff >= 0 && diff <= 3; }
 
+const REACTION_EMOJIS = ["❤️","👍","😍","🔥","✨","💡","🎉","😂","😮","👏","🙏","💯"];
+
+function EmojiPicker({ onSelect, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [onClose]);
+  return (
+    <div ref={ref} className="absolute z-50 flex flex-wrap gap-1 rounded-xl border border-black/10 bg-white p-2 shadow-xl"
+      style={{ bottom: "calc(100% + 6px)", left: 0, width: "176px" }}>
+      {REACTION_EMOJIS.map(emoji => (
+        <button key={emoji} type="button"
+          onClick={() => { onSelect(emoji); onClose(); }}
+          className="grid h-8 w-8 place-items-center rounded-lg text-lg hover:bg-slate-100 transition-colors">
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReactionRow({ itemId, reactions, currentUserId, onToggle }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const groups = reactions.reduce((acc, r) => {
+    if (!acc[r.emoji]) acc[r.emoji] = [];
+    acc[r.emoji].push(r);
+    return acc;
+  }, {});
+  return (
+    <div className="relative flex flex-wrap items-center gap-1 pl-7">
+      {Object.entries(groups).map(([emoji, reacted]) => {
+        const iMine = reacted.some(r => r.userId === currentUserId);
+        const names = reacted.map(r => r.userName).join(", ");
+        return (
+          <button key={emoji} type="button" onClick={() => onToggle && onToggle(itemId, emoji)}
+            title={names}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors
+              ${iMine ? "border-amber-400 bg-amber-50 text-amber-800" : "border-black/10 bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
+            <span>{emoji}</span>
+            <span className="font-medium">{reacted.length}</span>
+          </button>
+        );
+      })}
+      <div className="relative">
+        <button type="button" onClick={() => setPickerOpen(p => !p)}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400 opacity-0 transition-opacity hover:border-slate-500 hover:text-slate-600 group-hover:opacity-100"
+          title="Ajouter une réaction">
+          <span className="text-base leading-none">+</span>
+        </button>
+        {pickerOpen && <EmojiPicker onSelect={(e) => { onToggle && onToggle(itemId, e); setPickerOpen(false); }} onClose={() => setPickerOpen(false)} />}
+      </div>
+    </div>
+  );
+}
+
 function PersonPicker({ allPersons, value, onSelect, onCreatePerson, onClose }) {
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -4352,7 +4409,7 @@ function PersonPicker({ allPersons, value, onSelect, onCreatePerson, onClose }) 
 
 // ─── Section listes (tâches + courses) ───────────────────────────────────────
 
-function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn, projectMembers = [], persons = [], setPersons, savePersonsFn, onLogActivity }) {
+function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoomItemsFn, projectMembers = [], persons = [], setPersons, savePersonsFn, onLogActivity, itemReactions = {}, currentUserId = null, onToggleReaction = null }) {
   const [shopInput, setShopInput] = useState("");
   const [todoInput, setTodoInput] = useState("");
   const [linkMode, setLinkMode] = useState({ shopping: false, todos: false });
@@ -4623,7 +4680,8 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
           <ul className="space-y-1.5">
             {(listKey === "shopping" ? items : [...pending, ...done]).map((item) => (
               <li key={item.id}
-                className={`group flex items-center gap-2 rounded-lg border px-3 py-2 ${item.done && listKey === "shopping" ? "border-amber-200 bg-amber-50" : item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}>
+                className={`group flex flex-col gap-0.5 rounded-lg border px-3 py-2 ${item.done && listKey === "shopping" ? "border-amber-200 bg-amber-50" : item.done ? "border-black/5 bg-white opacity-50" : "border-black/10 bg-white"}`}>
+                <div className="flex items-center gap-2">
                 <button type="button" onClick={() => toggleItem(listKey, item.id)}
                   className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${item.done && listKey === "shopping" ? "border-amber-400 bg-amber-100 text-amber-700" : item.done ? "border-slate-300 bg-slate-100 text-slate-500" : "border-black/20 bg-white hover:bg-slate-50"}`}>
                   {item.done && listKey === "shopping" ? (
@@ -4693,6 +4751,15 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
                 </div>
                 <button type="button" onClick={() => removeItem(listKey, item.id)}
                   className="shrink-0 px-1 text-slate-400 opacity-0 transition-opacity hover:text-slate-700 group-hover:opacity-100">×</button>
+                </div>
+                {listKey === "shopping" && (
+                  <ReactionRow
+                    itemId={item.id}
+                    reactions={itemReactions[item.id] || []}
+                    currentUserId={currentUserId}
+                    onToggle={onToggleReaction}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -5259,6 +5326,7 @@ function ActivityFeedView({ activityFeed, allRoomPresets, onNavigate }) {
       case "inspiration_added": return "a ajouté une inspiration";
       case "inspiration_link_added": return "a ajouté un lien d'inspiration";
       case "discussion_added": return "a créé une discussion";
+      case "reaction_added": return "a réagi à une envie";
       default: return "a effectué une action";
     }
   };
@@ -5270,6 +5338,7 @@ function ActivityFeedView({ activityFeed, allRoomPresets, onNavigate }) {
       case "inspiration_added":
       case "inspiration_link_added": return "inspirations";
       case "discussion_added": return "discussions";
+      case "reaction_added": return "liste";
       default: return null;
     }
   };
@@ -5426,6 +5495,7 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(null); // null=detecting, true=show, false=skip
   const [roomLists, setRoomLists] = useState({});
+  const [itemReactions, setItemReactions] = useState({});
   const [roomDocuments, setRoomDocuments] = useState({});
   const [roomOrder, setRoomOrder] = useState(null);
   const [draggingRoom, setDraggingRoom] = useState(null);
@@ -5734,6 +5804,50 @@ export default function App() {
       .then(r => r.json())
       .then(({ notifications }) => setMentionNotifications(notifications || []))
       .catch(() => {});
+  };
+
+  const loadReactions = (pid) => {
+    if (!pid) return;
+    authedFetch(`${API_BASE}/load-room-items?projectId=${encodeURIComponent(pid)}&type=reactions`)
+      .then(r => r.json())
+      .then(({ reactions }) => {
+        if (!Array.isArray(reactions)) return;
+        const map = {};
+        for (const rx of reactions) {
+          if (!map[rx.item_id]) map[rx.item_id] = [];
+          map[rx.item_id].push({ id: rx.id, userId: rx.user_id, userName: rx.user_name, emoji: rx.emoji });
+        }
+        setItemReactions(map);
+      })
+      .catch(() => {});
+  };
+
+  const toggleReaction = (itemId, emoji) => {
+    if (!projectId || !user) return;
+    const userId = user.id;
+    const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Moi";
+    let isAdding = true;
+    let itemRoomKey = null;
+    let itemText = null;
+    setItemReactions(prev => {
+      const existing = prev[itemId] || [];
+      const mine = existing.find(r => r.userId === userId && r.emoji === emoji);
+      isAdding = !mine;
+      if (mine) return { ...prev, [itemId]: existing.filter(r => r !== mine) };
+      return { ...prev, [itemId]: [...existing, { id: `optimistic-${Date.now()}`, userId, userName, emoji }] };
+    });
+    if (isAdding) {
+      for (const [rk, lists] of Object.entries(roomLists)) {
+        const found = (lists.shopping || []).find(i => i.id === itemId);
+        if (found) { itemRoomKey = rk; itemText = found.previewTitle || found.text; break; }
+      }
+      if (itemRoomKey) logActivity("reaction_added", itemRoomKey, { emoji, itemText });
+    }
+    authedFetch(`${API_BASE}/save-room`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reaction", projectId, itemId, emoji }),
+    }).catch(() => loadReactions(projectId));
   };
 
   const markMentionsRead = (discussionIds) => {
@@ -6293,6 +6407,11 @@ export default function App() {
     if (projectId && user) loadMentionNotifications(projectId);
   }, [projectId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Charger les réactions emoji des envies
+  useEffect(() => {
+    if (projectId && user) loadReactions(projectId);
+  }, [projectId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Demander la permission pour les notifications desktop (une seule fois)
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -6347,6 +6466,37 @@ export default function App() {
           });
         }
       ).subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime réactions emoji — sync entre membres du projet
+  useEffect(() => {
+    if (!projectId || !import.meta.env.VITE_SUPABASE_URL) return;
+    const channel = supabase
+      .channel(`reactions-${projectId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "item_reactions", filter: `project_id=eq.${projectId}` },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+          if (eventType === "INSERT") {
+            setItemReactions(prev => {
+              const itemId = newRow.item_id;
+              const existing = prev[itemId] || [];
+              const withoutOptimistic = existing.filter(
+                r => !(typeof r.id === "string" && r.id.startsWith("optimistic-") && r.userId === newRow.user_id && r.emoji === newRow.emoji)
+              );
+              if (withoutOptimistic.some(r => r.id === newRow.id)) return prev;
+              return { ...prev, [itemId]: [...withoutOptimistic, { id: newRow.id, userId: newRow.user_id, userName: newRow.user_name, emoji: newRow.emoji }] };
+            });
+          } else if (eventType === "DELETE") {
+            setItemReactions(prev => ({
+              ...prev,
+              [oldRow.item_id]: (prev[oldRow.item_id] || []).filter(r => r.id !== oldRow.id)
+            }));
+          }
+        }
+      )
+      .subscribe();
     return () => supabase.removeChannel(channel);
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -7431,6 +7581,9 @@ export default function App() {
               setPersons={setPersons}
               savePersonsFn={savePersonsToServer}
               onLogActivity={logActivity}
+              itemReactions={itemReactions}
+              currentUserId={user?.id}
+              onToggleReaction={toggleReaction}
             />
             <DocumentsSection
               room={room}

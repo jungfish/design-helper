@@ -236,6 +236,34 @@ Deno.serve(async (req) => {
       return corsResponse(200, { ok: true });
     }
 
+    // --- reaction (toggle) ---
+    if (action === "reaction" && req.method === "POST") {
+      const { projectId, itemId, emoji } = body;
+      if (!projectId || !itemId || !emoji)
+        return corsResponse(400, { error: "projectId, itemId et emoji requis." });
+      if (emoji.length > 8)
+        return corsResponse(400, { error: "emoji invalide." });
+
+      const { data: member } = await supabase.from("project_members").select("role")
+        .eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
+      if (!member) return corsResponse(403, { error: "Accès refusé." });
+
+      const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Inconnu";
+
+      const { count: deletedCount } = await supabase.from("item_reactions")
+        .delete({ count: "exact" })
+        .eq("item_id", itemId).eq("user_id", user.id).eq("emoji", emoji).eq("project_id", projectId);
+
+      if (deletedCount && deletedCount > 0)
+        return corsResponse(200, { ok: true, toggled: "removed" });
+
+      const { error: insErr } = await supabase.from("item_reactions")
+        .insert({ item_id: itemId, project_id: projectId, user_id: user.id, user_name: userName, emoji });
+      if (insErr) throw new Error(insErr.message);
+
+      return corsResponse(200, { ok: true, toggled: "added" });
+    }
+
     return corsResponse(405, { error: "Méthode ou action non supportée." });
   } catch (err) {
     return corsResponse(500, { error: (err as Error).message || "Erreur lors de la sauvegarde." });

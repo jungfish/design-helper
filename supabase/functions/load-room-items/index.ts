@@ -131,6 +131,21 @@ Deno.serve(async (req) => {
       return corsResponse(200, { members });
     }
 
+    // --- reactions ---
+    if (type === "reactions") {
+      const { data: member } = await supabase.from("project_members").select("role")
+        .eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
+      if (!member) return corsResponse(403, { error: "Accès refusé." });
+
+      const { data: reactions, error: rErr } = await supabase
+        .from("item_reactions")
+        .select("id, item_id, user_id, user_name, emoji")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true });
+      if (rErr) throw new Error(rErr.message);
+      return corsResponse(200, { reactions: reactions || [] });
+    }
+
     // --- room items (défaut) ---
     const { data, error } = await supabase.from("room_items")
       .select("id, room_key, list_key, text, done, url, image, preview_title, position")
