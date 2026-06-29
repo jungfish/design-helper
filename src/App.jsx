@@ -5160,6 +5160,8 @@ export default function App() {
       },
     });
   };
+  const authedFetchRef = useRef(authedFetch);
+  authedFetchRef.current = authedFetch;
 
   const saveRoomNoteToServer = (pid, roomKey, content) => {
     if (!pid) return;
@@ -5554,7 +5556,7 @@ export default function App() {
         () => {
           if (isApplyingRemoteUpdate.current) return;
           isApplyingRemoteUpdate.current = true;
-          authedFetch(`${API_BASE}/load-project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`, { cache: "no-store" })
+          authedFetchRef.current(`${API_BASE}/load-project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`, { cache: "no-store" })
             .then((r) => r.json())
             .then(({ projectConfig, roomItems, chatMessages, roomNotesNormalized, roomDocumentsNormalized, roomNuancesNormalized, roomMediaNormalized }) => {
               if (projectConfig) {
@@ -5583,7 +5585,7 @@ export default function App() {
           clearTimeout(reloadTimer);
           reloadTimer = setTimeout(() => {
             if (isApplyingRemoteUpdate.current) return;
-            authedFetch(`${API_BASE}/load-room-items?projectId=${encodeURIComponent(projectId)}`)
+            authedFetchRef.current(`${API_BASE}/load-room-items?projectId=${encodeURIComponent(projectId)}`)
               .then((r) => r.json())
               .then(({ items }) => {
                 if (!Array.isArray(items) || items.length === 0) return;
@@ -5616,7 +5618,7 @@ export default function App() {
           reloadTimer = setTimeout(() => {
             setDiscussionsCache(cache => {
               Object.keys(cache).forEach(roomKey => {
-                authedFetch(`${API_BASE}/load-room-items?projectId=${encodeURIComponent(projectId)}&type=discussions&roomKey=${encodeURIComponent(roomKey)}`)
+                authedFetchRef.current(`${API_BASE}/load-room-items?projectId=${encodeURIComponent(projectId)}&type=discussions&roomKey=${encodeURIComponent(roomKey)}`)
                   .then(r => r.json())
                   .then(({ discussions }) => setDiscussionsCache(prev => ({ ...prev, [roomKey]: discussions || [] })))
                   .catch(() => {});
