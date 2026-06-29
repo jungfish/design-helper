@@ -63,20 +63,34 @@ Deno.serve(async (req) => {
 
     const supabaseUser = supabaseWithToken(token);
 
+    // Read existing media to avoid overwriting server data with empty client state
+    // (happens when a fresh browser session auto-saves before localStorage is populated)
+    const { data: existingMedia } = await supabaseAdmin
+      .from("room_media")
+      .select("data")
+      .eq("project_id", projectId)
+      .maybeSingle();
+    const existing = (existingMedia as { data: Record<string, unknown> } | null)?.data || {};
+
+    function mergeField(incoming: unknown, field: string): unknown {
+      const val = incoming ?? {};
+      return Object.keys(val as object).length > 0 ? val : (existing[field] ?? {});
+    }
+
     const mediaData = {
-      uploadedImages:      state.uploadedImages      || {},
-      inspirationLinks:    state.inspirationLinks    || {},
-      aiInspirations:      state.aiInspirations      || {},
-      instagramItems:      state.instagramItems      || {},
-      imageAnalysis:       state.imageAnalysis       || {},
-      deletedImages:       state.deletedImages       || {},
-      materialUploads:     state.materialUploads     || {},
-      materialLinks:       state.materialLinks       || {},
-      extraMaterialImages: state.extraMaterialImages || {},
-      extraMaterialMeta:   state.extraMaterialMeta   || {},
-      planUploads:         state.planUploads         || {},
-      planLinks:           state.planLinks           || {},
-      extraPlanImages:     state.extraPlanImages     || {},
+      uploadedImages:      mergeField(state.uploadedImages,      "uploadedImages"),
+      inspirationLinks:    mergeField(state.inspirationLinks,    "inspirationLinks"),
+      aiInspirations:      mergeField(state.aiInspirations,      "aiInspirations"),
+      instagramItems:      mergeField(state.instagramItems,      "instagramItems"),
+      imageAnalysis:       mergeField(state.imageAnalysis,       "imageAnalysis"),
+      deletedImages:       mergeField(state.deletedImages,       "deletedImages"),
+      materialUploads:     mergeField(state.materialUploads,     "materialUploads"),
+      materialLinks:       mergeField(state.materialLinks,       "materialLinks"),
+      extraMaterialImages: mergeField(state.extraMaterialImages, "extraMaterialImages"),
+      extraMaterialMeta:   mergeField(state.extraMaterialMeta,   "extraMaterialMeta"),
+      planUploads:         mergeField(state.planUploads,         "planUploads"),
+      planLinks:           mergeField(state.planLinks,           "planLinks"),
+      extraPlanImages:     mergeField(state.extraPlanImages,     "extraPlanImages"),
     };
     supabaseUser.from("room_media")
       .upsert({ project_id: projectId, data: mediaData, updated_at: new Date().toISOString() }, { onConflict: "project_id" })

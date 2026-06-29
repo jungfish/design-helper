@@ -24,20 +24,8 @@ const accents = {
   lin: { name: "Lin sable", hex: "#E9DFC8" },
 };
 
-const UPLOAD_STORAGE_KEY = "palette_upload_images_v1";
-const LINK_STORAGE_KEY = "palette_inspiration_links_v1";
-const MATERIAL_UPLOAD_STORAGE_KEY = "palette_material_upload_images_v1";
-const MATERIAL_LINK_STORAGE_KEY = "palette_material_links_v1";
 const ROOM_NUANCES_STORAGE_KEY = "palette_room_nuances_v1";
 const ROOM_NOTES_STORAGE_KEY = "palette_room_notes_v1";
-const PLAN_UPLOAD_STORAGE_KEY = "palette_plan_upload_images_v1";
-const PLAN_LINK_STORAGE_KEY = "palette_plan_links_v1";
-const AI_INSPIRATIONS_STORAGE_KEY = "palette_ai_inspirations_v1";
-const IMAGE_ANALYSIS_STORAGE_KEY = "palette_image_analysis_v1";
-const DELETED_IMAGES_STORAGE_KEY = "palette_deleted_images_v1";
-const PLAN_EXTRA_STORAGE_KEY = "palette_plan_extra_images_v1";
-const MATERIAL_EXTRA_STORAGE_KEY = "palette_material_extra_images_v1";
-const MATERIAL_META_STORAGE_KEY = "palette_material_meta_v1";
 const CUSTOM_ROOMS_STORAGE_KEY = "palette_custom_rooms_v1";
 const HIDDEN_ROOMS_STORAGE_KEY = "palette_hidden_rooms_v1";
 const PROJECT_STATE_STORAGE_KEY = "palette_project_state_v1";
@@ -48,7 +36,6 @@ const ROOM_ORDER_STORAGE_KEY = "palette_room_order_v1";
 const PROJECT_ID_STORAGE_KEY = "palette_project_id_v1";
 const GENERAL_CONTEXT_STORAGE_KEY = "palette_general_context_v1";
 const GENERAL_RESOURCES_STORAGE_KEY = "palette_general_resources_v1";
-const INSTAGRAM_STORAGE_KEY = "palette_instagram_v1";
 const CHAT_HISTORY_MAX = 50;
 const IMAGE_DB_NAME = "palette-appartement-images";
 const IMAGE_DB_STORE = "records";
@@ -4791,111 +4778,19 @@ export default function App() {
       return "";
     }
   });
-  const [uploadedImages, setUploadedImages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(UPLOAD_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [inspirationLinks, setInspirationLinks] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LINK_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [materialUploads, setMaterialUploads] = useState(() => {
-    try {
-      const raw = localStorage.getItem(MATERIAL_UPLOAD_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [materialLinks, setMaterialLinks] = useState(() => {
-    try {
-      const raw = localStorage.getItem(MATERIAL_LINK_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [planUploads, setPlanUploads] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PLAN_UPLOAD_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [planLinks, setPlanLinks] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PLAN_LINK_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [extraPlanImages, setExtraPlanImages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PLAN_EXTRA_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [extraMaterialImages, setExtraMaterialImages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(MATERIAL_EXTRA_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [extraMaterialMeta, setExtraMaterialMeta] = useState(() => {
-    try {
-      const raw = localStorage.getItem(MATERIAL_META_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [aiInspirations, setAiInspirations] = useState(() => {
-    try {
-      const raw = localStorage.getItem(AI_INSPIRATIONS_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [aiInspirationsLoaded, setAiInspirationsLoaded] = useState(false);
-  const [instagramItems, setInstagramItems] = useState(() => {
-    try {
-      const raw = localStorage.getItem(INSTAGRAM_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [imageAnalysis, setImageAnalysis] = useState(() => {
-    try {
-      const raw = localStorage.getItem(IMAGE_ANALYSIS_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [deletedImages, setDeletedImages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(DELETED_IMAGES_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [uploadedImages, setUploadedImages] = useState({});
+  const [inspirationLinks, setInspirationLinks] = useState({});
+  const [materialUploads, setMaterialUploads] = useState({});
+  const [materialLinks, setMaterialLinks] = useState({});
+  const [planUploads, setPlanUploads] = useState({});
+  const [planLinks, setPlanLinks] = useState({});
+  const [extraPlanImages, setExtraPlanImages] = useState({});
+  const [extraMaterialImages, setExtraMaterialImages] = useState({});
+  const [extraMaterialMeta, setExtraMaterialMeta] = useState({});
+  const [aiInspirations, setAiInspirations] = useState({});
+  const [instagramItems, setInstagramItems] = useState({});
+  const [imageAnalysis, setImageAnalysis] = useState({});
+  const [deletedImages, setDeletedImages] = useState({});
   const [roomNuances, setRoomNuances] = useState(() => {
     try {
       const raw = localStorage.getItem(ROOM_NUANCES_STORAGE_KEY);
@@ -5299,19 +5194,8 @@ export default function App() {
     await storeLargeValue(PROJECT_STATE_STORAGE_KEY, projectState);
     safelyStore(CUSTOM_ROOMS_STORAGE_KEY, customRooms);
     safelyStore(HIDDEN_ROOMS_STORAGE_KEY, hiddenRooms);
-    safelyStore(UPLOAD_STORAGE_KEY, uploadedImages);
-    safelyStore(LINK_STORAGE_KEY, inspirationLinks);
-    safelyStore(MATERIAL_UPLOAD_STORAGE_KEY, materialUploads);
-    safelyStore(MATERIAL_LINK_STORAGE_KEY, materialLinks);
     safelyStore(ROOM_NUANCES_STORAGE_KEY, roomNuances);
     safelyStore(ROOM_NOTES_STORAGE_KEY, roomNotes);
-    safelyStore(PLAN_UPLOAD_STORAGE_KEY, planUploads);
-    safelyStore(PLAN_LINK_STORAGE_KEY, planLinks);
-    safelyStore(PLAN_EXTRA_STORAGE_KEY, extraPlanImages);
-    safelyStore(MATERIAL_EXTRA_STORAGE_KEY, extraMaterialImages);
-    safelyStore(IMAGE_ANALYSIS_STORAGE_KEY, imageAnalysis);
-    safelyStore(DELETED_IMAGES_STORAGE_KEY, deletedImages);
-    safelyStore(INSTAGRAM_STORAGE_KEY, instagramItems);
     localStorage.setItem(LAST_SAVE_STORAGE_KEY, savedAt);
     setLastSavedAt(savedAt);
 
@@ -5472,11 +5356,7 @@ export default function App() {
 
   const switchProject = (id) => {
     [
-      UPLOAD_STORAGE_KEY, LINK_STORAGE_KEY, MATERIAL_UPLOAD_STORAGE_KEY,
-      MATERIAL_LINK_STORAGE_KEY, PLAN_UPLOAD_STORAGE_KEY, PLAN_LINK_STORAGE_KEY,
-      PLAN_EXTRA_STORAGE_KEY, MATERIAL_EXTRA_STORAGE_KEY, MATERIAL_META_STORAGE_KEY,
-      AI_INSPIRATIONS_STORAGE_KEY, IMAGE_ANALYSIS_STORAGE_KEY, DELETED_IMAGES_STORAGE_KEY,
-      INSTAGRAM_STORAGE_KEY, ROOM_LISTS_STORAGE_KEY, ROOM_DOCUMENTS_STORAGE_KEY,
+      ROOM_LISTS_STORAGE_KEY, ROOM_DOCUMENTS_STORAGE_KEY,
       ROOM_NUANCES_STORAGE_KEY, ROOM_NOTES_STORAGE_KEY, PROJECT_STATE_STORAGE_KEY,
       HIDDEN_ROOMS_STORAGE_KEY, CUSTOM_ROOMS_STORAGE_KEY,
     ].forEach(k => localStorage.removeItem(k));
@@ -5712,22 +5592,6 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    let isMounted = true;
-    readLargeValue(AI_INSPIRATIONS_STORAGE_KEY)
-      .then((stored) => {
-        if (isMounted && stored) setAiInspirations(stored);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (isMounted) setAiInspirationsLoaded(true);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
     if (new URLSearchParams(window.location.search).get("p")) return;
     let isMounted = true;
     readLargeValue(PROJECT_STATE_STORAGE_KEY)
@@ -5738,20 +5602,6 @@ export default function App() {
         if (typeof saved.warmth === "number") setWarmth(saved.warmth);
         if (Array.isArray(saved.customRooms)) setCustomRooms(saved.customRooms);
         if (Array.isArray(saved.hiddenRooms)) setHiddenRooms(saved.hiddenRooms);
-        // For image states: prefer localStorage (loaded by useState) if it already has data,
-        // since auto-sync effects keep it more current than IndexedDB (only updated on explicit save).
-        if (saved.uploadedImages) setUploadedImages(prev => Object.keys(prev).length ? { ...saved.uploadedImages, ...prev } : saved.uploadedImages);
-        if (saved.inspirationLinks) setInspirationLinks(saved.inspirationLinks);
-        if (saved.materialUploads) setMaterialUploads(prev => Object.keys(prev).length ? { ...saved.materialUploads, ...prev } : saved.materialUploads);
-        if (saved.materialLinks) setMaterialLinks(saved.materialLinks);
-        if (saved.planUploads) setPlanUploads(prev => Object.keys(prev).length ? { ...saved.planUploads, ...prev } : saved.planUploads);
-        if (saved.planLinks) setPlanLinks(saved.planLinks);
-        if (saved.extraPlanImages) setExtraPlanImages(prev => Object.keys(prev).length ? { ...saved.extraPlanImages, ...prev } : saved.extraPlanImages);
-        if (saved.extraMaterialImages) setExtraMaterialImages(prev => Object.keys(prev).length ? { ...saved.extraMaterialImages, ...prev } : saved.extraMaterialImages);
-        if (saved.extraMaterialMeta) setExtraMaterialMeta(prev => Object.keys(prev).length ? { ...saved.extraMaterialMeta, ...prev } : saved.extraMaterialMeta);
-        if (saved.aiInspirations) setAiInspirations(prev => Object.keys(prev).length ? { ...saved.aiInspirations, ...prev } : saved.aiInspirations);
-        if (saved.imageAnalysis) setImageAnalysis(prev => Object.keys(prev).length ? { ...saved.imageAnalysis, ...prev } : saved.imageAnalysis);
-        if (saved.deletedImages) setDeletedImages(saved.deletedImages);
         if (saved.roomNuances) setRoomNuances(saved.roomNuances);
         if (saved.roomNotes) setRoomNotes(saved.roomNotes);
         if (saved.roomLists) setRoomLists(saved.roomLists);
@@ -5802,67 +5652,12 @@ export default function App() {
   }, [hiddenRooms]);
 
   useEffect(() => {
-    safelyStore(UPLOAD_STORAGE_KEY, uploadedImages);
-  }, [uploadedImages]);
-
-  useEffect(() => {
-    safelyStore(LINK_STORAGE_KEY, inspirationLinks);
-  }, [inspirationLinks]);
-
-  useEffect(() => {
-    safelyStore(MATERIAL_UPLOAD_STORAGE_KEY, materialUploads);
-  }, [materialUploads]);
-
-  useEffect(() => {
-    safelyStore(MATERIAL_LINK_STORAGE_KEY, materialLinks);
-  }, [materialLinks]);
-
-  useEffect(() => {
     safelyStore(ROOM_NUANCES_STORAGE_KEY, roomNuances);
   }, [roomNuances]);
 
   useEffect(() => {
     safelyStore(ROOM_NOTES_STORAGE_KEY, roomNotes);
   }, [roomNotes]);
-
-  useEffect(() => {
-    safelyStore(PLAN_UPLOAD_STORAGE_KEY, planUploads);
-  }, [planUploads]);
-
-  useEffect(() => {
-    safelyStore(PLAN_LINK_STORAGE_KEY, planLinks);
-  }, [planLinks]);
-
-  useEffect(() => {
-    safelyStore(PLAN_EXTRA_STORAGE_KEY, extraPlanImages);
-  }, [extraPlanImages]);
-
-  useEffect(() => {
-    safelyStore(MATERIAL_EXTRA_STORAGE_KEY, extraMaterialImages);
-  }, [extraMaterialImages]);
-
-  useEffect(() => {
-    safelyStore(MATERIAL_META_STORAGE_KEY, extraMaterialMeta);
-  }, [extraMaterialMeta]);
-
-  useEffect(() => {
-    if (!aiInspirationsLoaded) return;
-    storeLargeValue(AI_INSPIRATIONS_STORAGE_KEY, aiInspirations).catch(() => {
-      safelyStore(AI_INSPIRATIONS_STORAGE_KEY, aiInspirations);
-    });
-  }, [aiInspirations, aiInspirationsLoaded]);
-
-  useEffect(() => {
-    safelyStore(IMAGE_ANALYSIS_STORAGE_KEY, imageAnalysis);
-  }, [imageAnalysis]);
-
-  useEffect(() => {
-    safelyStore(DELETED_IMAGES_STORAGE_KEY, deletedImages);
-  }, [deletedImages]);
-
-  useEffect(() => {
-    safelyStore(INSTAGRAM_STORAGE_KEY, instagramItems);
-  }, [instagramItems]);
 
   useEffect(() => {
     safelyStore(ROOM_LISTS_STORAGE_KEY, roomLists);
@@ -5919,11 +5714,7 @@ export default function App() {
           onComplete={(id) => {
             // Vider l'état et le localStorage pour ne pas polluer le nouveau projet
             [
-              UPLOAD_STORAGE_KEY, LINK_STORAGE_KEY, MATERIAL_UPLOAD_STORAGE_KEY,
-              MATERIAL_LINK_STORAGE_KEY, PLAN_UPLOAD_STORAGE_KEY, PLAN_LINK_STORAGE_KEY,
-              PLAN_EXTRA_STORAGE_KEY, MATERIAL_EXTRA_STORAGE_KEY, MATERIAL_META_STORAGE_KEY,
-              AI_INSPIRATIONS_STORAGE_KEY, IMAGE_ANALYSIS_STORAGE_KEY, DELETED_IMAGES_STORAGE_KEY,
-              INSTAGRAM_STORAGE_KEY, ROOM_LISTS_STORAGE_KEY, ROOM_DOCUMENTS_STORAGE_KEY,
+              ROOM_LISTS_STORAGE_KEY, ROOM_DOCUMENTS_STORAGE_KEY,
               ROOM_NUANCES_STORAGE_KEY, ROOM_NOTES_STORAGE_KEY, PROJECT_STATE_STORAGE_KEY,
               HIDDEN_ROOMS_STORAGE_KEY, CUSTOM_ROOMS_STORAGE_KEY,
             ].forEach(k => localStorage.removeItem(k));
