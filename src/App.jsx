@@ -5390,7 +5390,12 @@ export default function App() {
   useEffect(() => {
     if (!user?.id || !import.meta.env.VITE_SUPABASE_URL) return;
     supabase.from("project_members").select("project_id", { count: "exact", head: true }).eq("user_id", user.id)
-      .then(({ count }) => { if (count !== null) setUserProjectCount(count); });
+      .then(({ count }) => {
+        if (count !== null) {
+          setUserProjectCount(count);
+          if (count > 1) loadUserProjects();
+        }
+      });
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserProjects = async () => {
