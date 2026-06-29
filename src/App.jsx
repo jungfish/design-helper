@@ -2511,55 +2511,34 @@ function GeneralResourcesSection({ generalResources, setGeneralResources }) {
   );
 }
 
-function GeneralView({
-  orderedActiveRooms, allRoomPresets, getRoomColors,
-  generalContext, setGeneralContext,
-  roomLists, setRoomLists,
-  generalResources, setGeneralResources,
-  onNavigateToRoom,
-  projectId, saveRoomItemsFn,
-  user, isOwner, discussionsCache, onDiscussionsChange, authedFetch, onOpenThread, projectMembers,
+function DiscussionsGlobalView({
+  orderedActiveRooms, allRoomPresets, discussionsCache,
+  projectId, user, isOwner, onDiscussionsChange, authedFetch, projectMembers, onNavigateToRoom, onDiscussionUpdate,
 }) {
+  const allRooms = ["general", ...orderedActiveRooms];
   return (
-    <div className="space-y-6">
-      <GeneralPaletteSection
-        orderedActiveRooms={orderedActiveRooms}
-        allRoomPresets={allRoomPresets}
-        getRoomColors={getRoomColors}
-        onNavigateToRoom={onNavigateToRoom}
-      />
-      <GeneralContextSection
-        generalContext={generalContext}
-        setGeneralContext={setGeneralContext}
-      />
-      <DiscussionsPanel
-        room="general"
-        projectId={projectId}
-        user={user}
-        isOwner={isOwner}
-        discussions={discussionsCache?.general}
-        onDiscussionsChange={onDiscussionsChange}
-        authedFetch={authedFetch}
-        onOpenThread={onOpenThread}
-        allRoomPresets={allRoomPresets}
-        orderedActiveRooms={orderedActiveRooms}
-      />
-      <div className="rounded-xl border border-black/10 bg-white p-4">
-        <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Appartement</p>
-        <h2 className="type-h2 mb-4">Todos globaux</h2>
-        <ListeSection
-          room="general"
-          label="Appartement"
-          roomLists={roomLists}
-          setRoomLists={setRoomLists}
-          projectId={projectId}
-          saveRoomItemsFn={saveRoomItemsFn}
-        />
-      </div>
-      <GeneralResourcesSection
-        generalResources={generalResources}
-        setGeneralResources={setGeneralResources}
-      />
+    <div className="space-y-4">
+      {allRooms.map((roomKey) => (
+        <div key={roomKey} className="rounded-xl border border-black/10 bg-white p-4">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {roomKey === "general" ? "Appartement" : allRoomPresets[roomKey]?.label}
+          </p>
+          <DiscussionsPanel
+            room={roomKey}
+            discussions={discussionsCache?.[roomKey]}
+            projectId={projectId}
+            user={user}
+            isOwner={isOwner}
+            onDiscussionsChange={onDiscussionsChange}
+            authedFetch={authedFetch}
+            allRoomPresets={allRoomPresets}
+            orderedActiveRooms={orderedActiveRooms}
+            projectMembers={projectMembers}
+            onNavigateToRoom={onNavigateToRoom}
+            onDiscussionUpdate={onDiscussionUpdate}
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -2765,8 +2744,8 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
       : (orderedActiveRooms || []).filter(r => r.includes(mention.query || '')).map(r => ({ id: r, name: allRoomPresets?.[r]?.label || r }))
     : [];
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border border-black/10 bg-white" style={{ minHeight: '520px' }}>
       <div className="flex shrink-0 items-center gap-3 border-b border-black/10 px-4 py-3">
         <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-md border border-black/10 hover:bg-slate-50">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
@@ -2840,62 +2819,62 @@ function DiscussionThread({ discussionId, discussion, projectId, user, isOwner, 
         <div ref={messagesEndRef} />
       </div>
 
-      {mention && mentionOptions.length > 0 && (
-        <div className="absolute bottom-20 left-4 right-4 z-10 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
-          {mentionOptions.slice(0, 5).map((opt) => (
-            <button key={opt.id} type="button" onClick={() => handleInsertMention(opt.name)}
-              className="flex w-full items-center gap-2 border-b border-black/5 px-3 py-2.5 text-sm last:border-0 hover:bg-slate-50">
-              {mention.type === '@' && (opt.avatar
-                ? <img src={opt.avatar} alt="" className="h-5 w-5 rounded-full" />
-                : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium">{opt.name[0]}</span>)}
-              {mention.type === '#' && <span className="text-xs text-slate-400">#</span>}
-              <span>{opt.name}</span>
+      <div className="relative shrink-0">
+        {mention && mentionOptions.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 z-10 mx-4 mb-1 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
+            {mentionOptions.slice(0, 5).map((opt) => (
+              <button key={opt.id} type="button" onClick={() => handleInsertMention(opt.name)}
+                className="flex w-full items-center gap-2 border-b border-black/5 px-3 py-2.5 text-sm last:border-0 hover:bg-slate-50">
+                {mention.type === '@' && (opt.avatar
+                  ? <img src={opt.avatar} alt="" className="h-5 w-5 rounded-full" />
+                  : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-medium">{opt.name[0]}</span>)}
+                {mention.type === '#' && <span className="text-xs text-slate-400">#</span>}
+                <span>{opt.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {linkedImage && (
+          <div className="relative mx-4 mb-2 mt-2">
+            <img src={linkedImage} alt="" className="h-24 rounded-lg object-cover" />
+            <button type="button" onClick={() => setLinkedImage(null)} className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-xs leading-none text-white">×</button>
+          </div>
+        )}
+        <div className="border-t border-black/10 px-4 py-3">
+          <div className="flex items-end gap-2">
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 text-slate-500 hover:bg-slate-50 disabled:opacity-40">
+              {uploadingImage ? <span className="text-xs">…</span> : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              )}
             </button>
-          ))}
-        </div>
-      )}
-
-      {linkedImage && (
-        <div className="relative mx-4 mb-2">
-          <img src={linkedImage} alt="" className="h-24 rounded-lg object-cover" />
-          <button type="button" onClick={() => setLinkedImage(null)} className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-xs leading-none text-white">×</button>
-        </div>
-      )}
-
-      <div className="shrink-0 border-t border-black/10 px-4 py-3">
-        <div className="flex items-end gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 text-slate-500 hover:bg-slate-50 disabled:opacity-40">
-            {uploadingImage ? <span className="text-xs">…</span> : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-            )}
-          </button>
-          <textarea ref={textareaRef} value={input} onChange={handleInputChange}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } if (e.key === 'Escape') setMention(null); }}
-            placeholder="Écrire un message… @prénom #pièce"
-            rows={1}
-            className="flex-1 resize-none rounded-xl border border-black/10 bg-[#f9f7f3] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
-            style={{ maxHeight: '120px', overflowY: 'auto' }}
-            onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
-          />
-          <button type="button" onClick={handleSend} disabled={!input.trim() || sending}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
-          </button>
+            <textarea ref={textareaRef} value={input} onChange={handleInputChange}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } if (e.key === 'Escape') setMention(null); }}
+              placeholder="Écrire un message… @prénom #pièce"
+              rows={1}
+              className="flex-1 resize-none rounded-xl border border-black/10 bg-[#f9f7f3] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+              style={{ maxHeight: '120px', overflowY: 'auto' }}
+              onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
+            />
+            <button type="button" onClick={handleSend} disabled={!input.trim() || sending}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </div>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
 
-function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, onOpenThread, allRoomPresets, orderedActiveRooms }) {
+function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscussionsChange, authedFetch, projectMembers, allRoomPresets, orderedActiveRooms, onNavigateToRoom, onDiscussionUpdate }) {
   const [filter, setFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [openThread, setOpenThread] = useState(null);
 
   useEffect(() => {
     if (!projectId || !room) return;
@@ -2917,13 +2896,35 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
       onDiscussionsChange(room, [newDisc, ...(discussions || [])]);
       setNewTitle('');
       setShowCreate(false);
-      onOpenThread(discussionId, newDisc);
+      setOpenThread({ discussionId, discussion: newDisc });
     } catch {
       // ignore creation errors
     } finally {
       setCreating(false);
     }
   };
+
+  if (openThread) {
+    return (
+      <DiscussionThread
+        discussionId={openThread.discussionId}
+        discussion={openThread.discussion}
+        projectId={projectId}
+        user={user}
+        isOwner={isOwner}
+        authedFetch={authedFetch}
+        projectMembers={projectMembers}
+        orderedActiveRooms={orderedActiveRooms}
+        allRoomPresets={allRoomPresets}
+        onClose={() => setOpenThread(null)}
+        onDiscussionUpdate={(patch) => {
+          setOpenThread(prev => prev ? { ...prev, discussion: { ...prev.discussion, ...patch } } : prev);
+          onDiscussionUpdate?.(openThread.discussionId, patch);
+        }}
+        onNavigateToRoom={onNavigateToRoom}
+      />
+    );
+  }
 
   const filteredDiscussions = (discussions || []).filter(d => filter === 'all' || d.status === filter);
 
@@ -2982,7 +2983,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
       ) : (
         <div className="space-y-2">
           {filteredDiscussions.map((d) => (
-            <button key={d.id} type="button" onClick={() => onOpenThread(d.id, d)}
+            <button key={d.id} type="button" onClick={() => setOpenThread({ discussionId: d.id, discussion: d })}
               className="group w-full rounded-xl border border-black/10 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -4641,6 +4642,7 @@ export default function App() {
   });
   const [viewMode, setViewMode] = useState("room");
   const [roomMode, setRoomMode] = useState("inspirations");
+  const [generalMode, setGeneralMode] = useState("todos");
   const lastRoomModeRef = useRef({});
 
   const handleSetRoomMode = (mode) => {
@@ -4651,7 +4653,6 @@ export default function App() {
   const [show3D, setShow3D] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [discussionsCache, setDiscussionsCache] = useState({});
-  const [openThread, setOpenThread] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
   const [roomLists, setRoomLists] = useState(() => {
     try {
@@ -5582,21 +5583,6 @@ export default function App() {
                 </button>
               );
             })}
-            <div className="my-1 h-px bg-black/10" />
-            <button
-              type="button"
-              onClick={() => { setViewMode("palette"); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              className={`rounded-md border px-3 py-2 text-left text-sm ${viewMode === "palette" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"}`}
-            >
-              Palette globale
-            </button>
-            <button
-              type="button"
-              onClick={() => { setViewMode("todos-global"); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              className={`rounded-md border px-3 py-2 text-left text-sm ${viewMode === "todos-global" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"}`}
-            >
-              Tous les todos
-            </button>
             <button
               type="button"
               onClick={addRoom}
@@ -5718,36 +5704,6 @@ export default function App() {
                 </button>
               );
             })}
-            <div className="mx-1 h-6 w-px shrink-0 bg-black/10" />
-            <button
-              type="button"
-              onClick={() => { setViewMode("palette"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
-                viewMode === "palette" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
-              }`}
-            >
-              Palette
-            </button>
-            {(() => {
-              const totalPending = orderedActiveRooms.reduce((acc, key) => {
-                const list = roomLists[key] || {};
-                return acc + [...(list.shopping || []), ...(list.todos || [])].filter((i) => !i.done).length;
-              }, 0);
-              return (
-                <button
-                  type="button"
-                  onClick={() => { setViewMode("todos-global"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  className={`relative shrink-0 whitespace-nowrap rounded-lg border px-3 py-2 text-sm ${
-                    viewMode === "todos-global" ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 bg-[#f9f7f3]"
-                  }`}
-                >
-                  Todos
-                  {totalPending > 0 ? (
-                    <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{totalPending}</span>
-                  ) : null}
-                </button>
-              );
-            })()}
             <button
               type="button"
               onClick={addRoom}
@@ -5789,82 +5745,127 @@ export default function App() {
         ) : null}
 
         {viewMode === "general" ? (
-          <GeneralView
-            orderedActiveRooms={orderedActiveRooms}
-            allRoomPresets={allRoomPresets}
-            getRoomColors={getRoomColors}
-            generalContext={generalContext}
-            setGeneralContext={setGeneralContext}
-            roomLists={roomLists}
-            setRoomLists={setRoomLists}
-            generalResources={generalResources}
-            setGeneralResources={setGeneralResources}
-            onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-            projectId={projectId}
-            saveRoomItemsFn={saveRoomItemsToServer}
-            user={user}
-            isOwner={isOwner}
-            discussionsCache={discussionsCache}
-            onDiscussionsChange={updateDiscussionsCache}
-            authedFetch={authedFetch}
-            onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
-            projectMembers={projectMembers}
-          />
-        ) : viewMode === "todos-global" ? (
-          <TodosGlobalView
-            orderedActiveRooms={orderedActiveRooms}
-            allRoomPresets={allRoomPresets}
-            roomLists={roomLists}
-            setRoomLists={setRoomLists}
-          />
-        ) : viewMode === "palette" ? (
-          <>
-            <div className="rounded-xl border border-black/10 bg-white p-4">
-              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
-              <h2 className="type-h2">Palette de l'appartement</h2>
-              <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs choisies.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {orderedActiveRooms.map((key) => {
-                const p = allRoomPresets[key];
-                const colors = getRoomColors(key);
-                if (!colors || !p) return null;
-                const pending = roomPendingCount(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                    className="group rounded-xl border border-black/10 bg-white p-4 text-left transition-all hover:border-slate-400/40 hover:shadow-md"
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-medium text-slate-900">{p.label}</div>
-                        {pending > 0 ? (
-                          <div className="mt-0.5 text-xs text-amber-700">{pending} élément{pending > 1 ? "s" : ""} en attente</div>
-                        ) : null}
-                      </div>
-                      <span className="shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">→</span>
-                    </div>
-                    <div className="mb-3 flex gap-2">
-                      {[
-                        { ...colors.dominant, sublabel: "Dom." },
-                        { ...colors.secondary, sublabel: "Sec." },
-                        { ...colors.accent, sublabel: "Acc." },
-                      ].map(({ hex, sublabel }) => (
-                        <div key={sublabel} className="min-w-0 flex-1">
-                          <div className="mb-1 h-7 rounded border border-black/10" style={{ backgroundColor: hex }} />
-                          <div className="truncate text-[10px] text-slate-400">{sublabel}</div>
-                          <div className="truncate font-mono text-[10px] text-slate-600">{hex}</div>
+          <div className="flex gap-1 rounded-xl border border-black/10 bg-white p-1.5">
+            {(() => {
+              const totalPending = orderedActiveRooms.reduce((acc, key) => {
+                const list = roomLists[key] || {};
+                return acc + [...(list.shopping || []), ...(list.todos || [])].filter((i) => !i.done).length;
+              }, 0);
+              const totalUnread = ["general", ...orderedActiveRooms].reduce((acc, key) => {
+                return acc + (discussionsCache[key] || []).reduce((sum, d) => sum + (d.unread_count || 0), 0);
+              }, 0);
+              return [
+                { key: "todos", label: "Todos", badge: totalPending },
+                { key: "couleurs", label: "Couleurs", badge: 0 },
+                { key: "discussions", label: "Discussions", badge: totalUnread },
+                { key: "ressources", label: "Ressources", badge: 0 },
+              ].map(({ key, label, badge }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setGeneralMode(key)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+                    generalMode === key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {label}
+                  {badge > 0 ? (
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-amber-900">{badge}</span>
+                  ) : null}
+                </button>
+              ));
+            })()}
+          </div>
+        ) : null}
+
+        {viewMode === "general" ? (
+          generalMode === "todos" ? (
+            <TodosGlobalView
+              orderedActiveRooms={orderedActiveRooms}
+              allRoomPresets={allRoomPresets}
+              roomLists={roomLists}
+              setRoomLists={setRoomLists}
+            />
+          ) : generalMode === "couleurs" ? (
+            <>
+              <div className="rounded-xl border border-black/10 bg-white p-4">
+                <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
+                <h2 className="type-h2">Palette de l'appartement</h2>
+                <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs choisies.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {orderedActiveRooms.map((key) => {
+                  const p = allRoomPresets[key];
+                  const colors = getRoomColors(key);
+                  if (!colors || !p) return null;
+                  const pending = roomPendingCount(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      className="group rounded-xl border border-black/10 bg-white p-4 text-left transition-all hover:border-slate-400/40 hover:shadow-md"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-900">{p.label}</div>
+                          {pending > 0 ? (
+                            <div className="mt-0.5 text-xs text-amber-700">{pending} élément{pending > 1 ? "s" : ""} en attente</div>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
-                    <p className="line-clamp-2 text-xs leading-relaxed text-slate-500">{p.line}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </>
+                        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">→</span>
+                      </div>
+                      <div className="mb-3 flex gap-2">
+                        {[
+                          { ...colors.dominant, sublabel: "Dom." },
+                          { ...colors.secondary, sublabel: "Sec." },
+                          { ...colors.accent, sublabel: "Acc." },
+                        ].map(({ hex, sublabel }) => (
+                          <div key={sublabel} className="min-w-0 flex-1">
+                            <div className="mb-1 h-7 rounded border border-black/10" style={{ backgroundColor: hex }} />
+                            <div className="truncate text-[10px] text-slate-400">{sublabel}</div>
+                            <div className="truncate font-mono text-[10px] text-slate-600">{hex}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="line-clamp-2 text-xs leading-relaxed text-slate-500">{p.line}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <GeneralContextSection
+                generalContext={generalContext}
+                setGeneralContext={setGeneralContext}
+              />
+            </>
+          ) : generalMode === "discussions" ? (
+            <DiscussionsGlobalView
+              orderedActiveRooms={orderedActiveRooms}
+              allRoomPresets={allRoomPresets}
+              discussionsCache={discussionsCache}
+              projectId={projectId}
+              user={user}
+              isOwner={isOwner}
+              onDiscussionsChange={updateDiscussionsCache}
+              authedFetch={authedFetch}
+              projectMembers={projectMembers}
+              onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              onDiscussionUpdate={(discussionId, patch) => {
+                setDiscussionsCache(prev => {
+                  const updated = { ...prev };
+                  for (const rk of Object.keys(updated)) {
+                    updated[rk] = (updated[rk] || []).map(d => d.id === discussionId ? { ...d, ...patch } : d);
+                  }
+                  return updated;
+                });
+              }}
+            />
+          ) : (
+            <GeneralResourcesSection
+              generalResources={generalResources}
+              setGeneralResources={setGeneralResources}
+            />
+          )
         ) : roomMode === "couleurs" ? (
           <>
             <section className="grid gap-6 xl:grid-cols-2">
@@ -6140,35 +6141,19 @@ export default function App() {
             discussions={discussionsCache[room]}
             onDiscussionsChange={updateDiscussionsCache}
             authedFetch={authedFetch}
-            onOpenThread={(id, disc) => setOpenThread({ discussionId: id, discussion: disc })}
             allRoomPresets={allRoomPresets}
             orderedActiveRooms={orderedActiveRooms}
-          />
-        ) : null}
-
-        {openThread ? (
-          <DiscussionThread
-            discussionId={openThread.discussionId}
-            discussion={openThread.discussion}
-            projectId={projectId}
-            user={user}
-            isOwner={isOwner}
-            authedFetch={authedFetch}
             projectMembers={projectMembers}
-            orderedActiveRooms={orderedActiveRooms}
-            allRoomPresets={allRoomPresets}
-            onClose={() => setOpenThread(null)}
-            onDiscussionUpdate={(patch) => {
-              setOpenThread(prev => prev ? { ...prev, discussion: { ...prev.discussion, ...patch } } : prev);
+            onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onDiscussionUpdate={(discussionId, patch) => {
               setDiscussionsCache(prev => {
                 const updated = { ...prev };
                 for (const rk of Object.keys(updated)) {
-                  updated[rk] = (updated[rk] || []).map(d => d.id === openThread.discussionId ? { ...d, ...patch } : d);
+                  updated[rk] = (updated[rk] || []).map(d => d.id === discussionId ? { ...d, ...patch } : d);
                 }
                 return updated;
               });
             }}
-            onNavigateToRoom={(key) => { setRoom(key); setViewMode("room"); setOpenThread(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           />
         ) : null}
 
