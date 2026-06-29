@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { RoomViewer3D } from "./RoomViewer3D";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./useAuth";
+import { OnboardingWizard } from "./OnboardingWizard";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -4824,6 +4825,7 @@ export default function App() {
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
   const [userProjectCount, setUserProjectCount] = useState(1);
+  const [showOnboarding, setShowOnboarding] = useState(null); // null=detecting, true=show, false=skip
   const [roomLists, setRoomLists] = useState(() => {
     try {
       const raw = localStorage.getItem(ROOM_LISTS_STORAGE_KEY);
@@ -5373,7 +5375,7 @@ export default function App() {
         if (loaded.inviteCode) setInviteCode(loaded.inviteCode);
       }
     }
-    return { ok: true };
+    return { ok: true, projectId: data.projectId };
   };
 
   // Realtime subscription — receive updates from other users on the same project
@@ -5471,6 +5473,13 @@ export default function App() {
     if (!user?.id || !import.meta.env.VITE_SUPABASE_URL) return;
     supabase.from("project_members").select("project_id", { count: "exact", head: true }).eq("user_id", user.id)
       .then(({ count }) => { if (count !== null) setUserProjectCount(count); });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Détecter si l'utilisateur est nouveau (pas encore de projets) → afficher l'onboarding
+  useEffect(() => {
+    if (!user?.id || projectId || !import.meta.env.VITE_SUPABASE_URL) return;
+    supabase.from("project_members").select("project_id", { count: "exact", head: true }).eq("user_id", user.id)
+      .then(({ count }) => setShowOnboarding(count === 0));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Charger les membres du projet pour les @mentions
@@ -5716,6 +5725,24 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#FAF6F0]" />;
   if (!user) return <LoginScreen onSignIn={signInWithGoogle} />;
   if (!projectId) {
+    if (showOnboarding === null) return <div className="min-h-screen bg-[#FAF6F0]" />;
+    if (showOnboarding) {
+      return (
+        <OnboardingWizard
+          user={user}
+          session={session}
+          onComplete={(id) => {
+            setProjectId(id);
+            localStorage.setItem(PROJECT_ID_STORAGE_KEY, id);
+            window.history.replaceState({}, "", `/?p=${id}`);
+            setShowOnboarding(false);
+          }}
+          onJoinProject={handleJoinProject}
+          onSkip={() => setShowOnboarding(false)}
+          signOut={signOut}
+        />
+      );
+    }
     return (
       <JoinOrCreateScreen
         user={user}

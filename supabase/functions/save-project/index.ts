@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (!user || !token) return corsResponse(401, { error: "Authentification requise." });
 
   const body = await req.json();
-  const { state, id, snapshot, snapshotLabel } = body;
+  const { state, id, snapshot, snapshotLabel, name } = body;
 
   if (!state) return corsResponse(400, { error: "state requis." });
 
@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
 
     if (isNewProject) {
       upsertData.owner_id = user.id;
+      if (name) upsertData.name = name;
     } else {
       const { data: member } = await supabaseAdmin
         .from("project_members")
