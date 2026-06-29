@@ -161,8 +161,8 @@ function buildSystemPrompt(ctx: Record<string, unknown>): string {
     `Palette: dominante ${ctx.dominantName} (${ctx.dominantHex}), secondaire ${ctx.secondaryName} (${ctx.secondaryHex}), accent ${ctx.accentName} (${ctx.accentHex})`,
     ctx.roomNote ? `Notes: ${ctx.roomNote}` : null,
     ctx.imageMetadataSummary ? `Contexte visuel: ${ctx.imageMetadataSummary}` : null,
-    (ctx.todoItems as {id:string,text:string}[])?.length ? `Todos de la pièce: ${(ctx.todoItems as {id:string,text:string}[]).map(i => `[${i.id}] ${i.text}`).join(", ")}` : null,
-    (ctx.shoppingItems as {id:string,text:string}[])?.length ? `En liste de courses: ${(ctx.shoppingItems as {id:string,text:string}[]).map(i => `[${i.id}] ${i.text}`).join(", ")}` : null,
+    (ctx.todoItems as {id:string,text:string}[])?.length ? `Todos de la pièce: ${(ctx.todoItems as {id:string,text:string}[]).map(i => i.id ? `[${i.id}] ${i.text}` : i.text).join(", ")}` : null,
+    (ctx.shoppingItems as {id:string,text:string}[])?.length ? `En liste de courses: ${(ctx.shoppingItems as {id:string,text:string}[]).map(i => i.id ? `[${i.id}] ${i.text}` : i.text).join(", ")}` : null,
     (ctx.persons as string[])?.length ? `Personnes disponibles pour assignation: ${(ctx.persons as string[]).join(", ")}` : null,
     (ctx.materialSummary as string[])?.length ? `Matériaux choisis: ${(ctx.materialSummary as string[]).join("; ")}` : null,
     ctx.allRoomsSummary ? `Autres pièces: ${ctx.allRoomsSummary}` : null,
@@ -183,8 +183,8 @@ function buildGeneralSystemPrompt(
   const roomsDetail = availableRooms.map((r) => {
     const parts = [`— ${r.label} (key: "${r.key}"): ${r.line || ""}`];
     if (r.roomNote) parts.push(`  Note: ${r.roomNote}`);
-    if (r.todoItems?.length) parts.push(`  Todos: ${r.todoItems.map(i => `[${i.id}] ${i.text}`).join(", ")}`);
-    if (r.shoppingItems?.length) parts.push(`  En liste: ${r.shoppingItems.map(i => `[${i.id}] ${i.text}`).join(", ")}`);
+    if (r.todoItems?.length) parts.push(`  Todos: ${r.todoItems.map(i => i.id ? `[${i.id}] ${i.text}` : i.text).join(", ")}`);
+    if (r.shoppingItems?.length) parts.push(`  En liste: ${r.shoppingItems.map(i => i.id ? `[${i.id}] ${i.text}` : i.text).join(", ")}`);
     if (r.materialSummary?.length) parts.push(`  Matériaux: ${r.materialSummary.join("; ")}`);
     return parts.join("\n");
   }).join("\n");
