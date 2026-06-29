@@ -3175,7 +3175,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
   );
 }
 
-function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, onClose }) {
+function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, setRoomLists, setRoomNotes, projectId, saveMessageFn, saveNoteFn, saveRoomItemsFn, onClose }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -3258,10 +3258,11 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
             text: itemText,
             done: false,
           }));
-          setRoomLists((prev) => ({
-            ...prev,
-            [room]: { ...(prev[room] || {}), shopping: [...((prev[room] || {}).shopping || []), ...newItems] },
-          }));
+          setRoomLists((prev) => {
+            const updated = [...((prev[room] || {}).shopping || []), ...newItems];
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "shopping", updated);
+            return { ...prev, [room]: { ...(prev[room] || {}), shopping: updated } };
+          });
           notices.push(`${newItems.length} article${newItems.length > 1 ? "s" : ""} ajouté${newItems.length > 1 ? "s" : ""} à ta liste.`);
         } else if (call.name === "add_to_todo_list" && setRoomLists) {
           const newItems = (call.args.items || []).map((itemText) => ({
@@ -3269,10 +3270,11 @@ function ChatPanel({ room, aiContext, chatHistory, setChatHistory, roomImages, s
             text: itemText,
             done: false,
           }));
-          setRoomLists((prev) => ({
-            ...prev,
-            [room]: { ...(prev[room] || {}), todos: [...((prev[room] || {}).todos || []), ...newItems] },
-          }));
+          setRoomLists((prev) => {
+            const updated = [...((prev[room] || {}).todos || []), ...newItems];
+            if (saveRoomItemsFn && projectId) saveRoomItemsFn(projectId, room, "todos", updated);
+            return { ...prev, [room]: { ...(prev[room] || {}), todos: updated } };
+          });
           notices.push(`${newItems.length} tâche${newItems.length > 1 ? "s" : ""} ajoutée${newItems.length > 1 ? "s" : ""} aux todos.`);
         } else if (call.name === "save_room_note" && setRoomNotes) {
           setRoomNotes((prev) => ({ ...prev, [room]: call.args.note }));
@@ -6933,6 +6935,7 @@ export default function App() {
                   projectId={projectId}
                   saveMessageFn={saveChatMessageToServer}
                   saveNoteFn={saveRoomNoteToServer}
+                  saveRoomItemsFn={saveRoomItemsToServer}
                   onClose={() => setIsChatOpen(false)}
                   roomImages={[
                     ...(roomPlanImages[room] || []).map((src, i) => ({ src: planUploads[`${room}-plan-${i}`] || src, key: `${room}-plan-${i}` })),

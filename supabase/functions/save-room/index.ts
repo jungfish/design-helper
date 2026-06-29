@@ -28,24 +28,29 @@ Deno.serve(async (req) => {
       const { data: member } = await supabase.from("project_members").select("role").eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
       if (!member) return corsResponse(403, { error: "Accès refusé." });
 
-      const { error: deleteError } = await supabase.from("room_items").delete().eq("project_id", projectId).eq("room_key", roomKey).eq("list_key", listKey);
-      if (deleteError) throw new Error(deleteError.message);
+      const rows = items.map((item: Record<string, unknown>, idx: number) => ({
+        id: item.id,
+        project_id: projectId,
+        room_key: roomKey,
+        list_key: listKey,
+        text: item.text || "",
+        done: item.done || false,
+        url: item.url || null,
+        image: typeof item.image === "string" && item.image.startsWith("data:") ? null : (item.image || null),
+        preview_title: item.previewTitle || null,
+        position: idx,
+      }));
 
-      if (items.length > 0) {
-        const rows = items.map((item: Record<string, unknown>, idx: number) => ({
-          id: item.id,
-          project_id: projectId,
-          room_key: roomKey,
-          list_key: listKey,
-          text: item.text || "",
-          done: item.done || false,
-          url: item.url || null,
-          image: typeof item.image === "string" && item.image.startsWith("data:") ? null : (item.image || null),
-          preview_title: item.previewTitle || null,
-          position: idx,
-        }));
-        const { error: insertError } = await supabase.from("room_items").insert(rows);
-        if (insertError) throw new Error(insertError.message);
+      const ids = rows.map((r) => r.id).filter(Boolean) as string[];
+      if (ids.length === 0) {
+        const { error: delErr } = await supabase.from("room_items").delete().eq("project_id", projectId).eq("room_key", roomKey).eq("list_key", listKey);
+        if (delErr) throw new Error(delErr.message);
+      } else {
+        // Supprimer uniquement les items qui ne sont plus dans la liste (évite la race condition DELETE+INSERT)
+        const { error: delErr } = await supabase.from("room_items").delete().eq("project_id", projectId).eq("room_key", roomKey).eq("list_key", listKey).not("id", "in", `(${ids.join(",")})`);
+        if (delErr) throw new Error(delErr.message);
+        const { error: upsertErr } = await supabase.from("room_items").upsert(rows, { onConflict: "id" });
+        if (upsertErr) throw new Error(upsertErr.message);
       }
       return corsResponse(200, { ok: true });
     }
