@@ -7672,7 +7672,7 @@ export default function App() {
             />
           ) : (
             <ActivityFeedView
-              activityFeed={activityFeed}
+              activityFeed={activityFeed.filter(e => e.user_id !== user?.id)}
               allRoomPresets={allRoomPresets}
               onNavigate={(roomKey, tab) => {
                 setRoom(roomKey);
