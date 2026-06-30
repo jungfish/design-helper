@@ -2354,7 +2354,7 @@ function MaterialsSection({
         </div>
       </div>
       {visibleItems.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-black/15 bg-[#faf7f2] py-12 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2H2v10l9.29 9.29a1 1 0 001.42 0l6.58-6.58a1 1 0 000-1.42L12 2z"/>
             <circle cx="7" cy="7" r="1.5" fill="#b0a89a" stroke="none"/>
