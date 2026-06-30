@@ -5768,6 +5768,7 @@ export default function App() {
   // ── Projet ────────────────────────────────────────────────────────────────
   const [room, setRoom] = useState("salon");
   const [globalAccent, setGlobalAccent] = useState("butter");
+  const [globalShade, setGlobalShade] = useState("moyen");
   const [warmth, setWarmth] = useState(60);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -5935,10 +5936,13 @@ export default function App() {
       todoItems: (roomLists[key]?.todos || []).filter((i) => !i.done).slice(0, 5).map((i) => ({ id: i.id, text: i.text })),
       shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => {
           const rxs = itemReactions[i.id];
-          if (!rxs?.length) return { id: i.id, text: i.text };
+          const sels = itemSelections[i.id];
           const grouped = {};
-          rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
-          return { id: i.id, text: i.text, reactions: grouped };
+          if (rxs?.length) rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
+          const result = { id: i.id, text: i.text };
+          if (Object.keys(grouped).length) result.reactions = grouped;
+          if (sels?.length) result.selectedBy = sels.map(s => s.userName);
+          return result;
         }),
       materialSummary: (materialsByRoom[key] || []).map((m) => `${m.label}: ${m.value}`).slice(0, 3),
     };
@@ -5947,10 +5951,13 @@ export default function App() {
   const aiShoppingItems = (roomLists[room]?.shopping || [])
     .filter((i) => !i.done).slice(0, 5).map((i) => {
       const rxs = itemReactions[i.id];
-      if (!rxs?.length) return { id: i.id, text: i.text };
+      const sels = itemSelections[i.id];
       const grouped = {};
-      rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
-      return { id: i.id, text: i.text, reactions: grouped };
+      if (rxs?.length) rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
+      const result = { id: i.id, text: i.text };
+      if (Object.keys(grouped).length) result.reactions = grouped;
+      if (sels?.length) result.selectedBy = sels.map(s => s.userName);
+      return result;
     });
 
   const aiTodoItems = (roomLists[room]?.todos || [])
@@ -6353,6 +6360,7 @@ export default function App() {
       savedAt,
       room,
       globalAccent,
+      globalShade,
       warmth,
       customRooms,
       hiddenRooms,
@@ -6413,6 +6421,7 @@ export default function App() {
     const cfg = saved.projectConfig || saved;
     if (cfg.room && !skipRoomSync) setRoom(cfg.room);
     if (cfg.globalAccent) setGlobalAccent(cfg.globalAccent);
+    if (cfg.globalShade) setGlobalShade(cfg.globalShade);
     if (typeof cfg.warmth === "number") setWarmth(cfg.warmth);
     if (Array.isArray(cfg.customRooms)) setCustomRooms(cfg.customRooms);
     if (Array.isArray(cfg.hiddenRooms)) setHiddenRooms(cfg.hiddenRooms);
@@ -6565,6 +6574,7 @@ export default function App() {
     setHiddenRooms([]);
     setCustomRooms([]);
     setGlobalAccent("butter");
+    setGlobalShade("moyen");
     setRoomOrder(null);
     setChatHistory({});
     setProjectId(id);
@@ -6607,6 +6617,7 @@ export default function App() {
     setHiddenRooms([]);
     setCustomRooms([]);
     setGlobalAccent("butter");
+    setGlobalShade("moyen");
     setRoomOrder(null);
     setChatHistory({});
     setShowProjectPicker(false);
@@ -7128,10 +7139,10 @@ export default function App() {
       >
         <div className="flex h-14 flex-shrink-0 items-center gap-2.5 border-b border-black/[0.08] bg-[#F2EFE7] px-3.5">
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-            <rect x="0" y="0" width="9.5" height="9.5" rx="2" fill="#b8c9d0"/>
-            <rect x="12.5" y="0" width="9.5" height="9.5" rx="2" fill="#A8B5A2"/>
-            <rect x="0" y="12.5" width="9.5" height="9.5" rx="2" fill="#D0AA6C"/>
-            <rect x="12.5" y="12.5" width="9.5" height="9.5" rx="2" fill="#FAF6F0" stroke="rgba(0,0,0,0.12)" strokeWidth="0.75"/>
+            <rect x="0" y="0" width="9.5" height="9.5" rx="2" fill={baseColors.bleu[shadeMap[globalShade]]}/>
+            <rect x="12.5" y="0" width="9.5" height="9.5" rx="2" fill={baseColors.vert[shadeMap[globalShade]]}/>
+            <rect x="0" y="12.5" width="9.5" height="9.5" rx="2" fill={baseColors.bois[shadeMap[globalShade]]}/>
+            <rect x="12.5" y="12.5" width="9.5" height="9.5" rx="2" fill={baseColors.creme[shadeMap[globalShade]]} stroke="rgba(0,0,0,0.12)" strokeWidth="0.75"/>
           </svg>
           <span className="text-[15px] font-bold tracking-[-0.02em] text-[#1C1A17]">renoom</span>
         </div>
@@ -7800,11 +7811,33 @@ export default function App() {
               <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
                 <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
                 <h2 className="type-h2">Palette de l'appartement</h2>
+                <div>
+                  <div className="mb-2 text-sm font-medium">Nuance générale</div>
+                  <div className="flex gap-1.5">
+                    {[
+                      { key: "clair", label: "Clair" },
+                      { key: "moyen", label: "Moyen" },
+                      { key: "soutenu", label: "Soutenu" },
+                      { key: "fonce", label: "Foncé" },
+                    ].map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setGlobalShade(key)}
+                        className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all ${
+                          globalShade === key ? "border-slate-900 bg-slate-900 text-white" : "border-black/15 text-slate-600 hover:border-black/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Swatch title="Crème chaud" subtitle="Base" hex={baseColors.creme.hex} />
-                  <Swatch title="Bleu clair grisé" subtitle="Pilier" hex={baseColors.bleu.hex} />
-                  <Swatch title="Vert sauge" subtitle="Pilier" hex={baseColors.vert.hex} />
-                  <Swatch title="Chêne clair" subtitle="Fil conducteur" hex={baseColors.bois.hex} />
+                  <Swatch title="Crème chaud" subtitle="Base" hex={baseColors.creme[shadeMap[globalShade]]} />
+                  <Swatch title="Bleu clair grisé" subtitle="Pilier" hex={baseColors.bleu[shadeMap[globalShade]]} />
+                  <Swatch title="Vert sauge" subtitle="Pilier" hex={baseColors.vert[shadeMap[globalShade]]} />
+                  <Swatch title="Chêne clair" subtitle="Fil conducteur" hex={baseColors.bois[shadeMap[globalShade]]} />
                 </div>
                 <div>
                   <div className="mb-2 text-sm font-medium">Accents autorisés</div>
