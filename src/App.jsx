@@ -1546,7 +1546,7 @@ function PlanPreview({
   };
 
   return (
-    <div className="overflow-visible rounded-xl border border-black/10 bg-white">
+    <div className="overflow-visible rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6]">
       <div className="flex flex-col gap-3 border-b border-black/10 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Plan d'archi</p>
@@ -1580,7 +1580,7 @@ function PlanPreview({
         </div>
       </div>
       <div
-        className={`group relative bg-[#efe7de]${currentSrc ? " h-64 sm:h-80 lg:h-[360px]" : ""}`}
+        className={`group relative bg-[#e8e1d6]/60${currentSrc ? " h-64 sm:h-80 lg:h-[360px]" : ""}`}
         style={{ cursor: currentSrc && !isMissing && !isPdfUrl(currentSrc) ? "zoom-in" : "default" }}
         onClick={() => {
           if (currentSrc && !isMissing && !isPdfUrl(currentSrc) && onImageClick) {
