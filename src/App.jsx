@@ -1580,7 +1580,7 @@ function PlanPreview({
         </div>
       </div>
       <div
-        className="group relative h-64 bg-[#efe7de] sm:h-80 lg:h-[360px]"
+        className={`group relative bg-[#efe7de]${currentSrc ? " h-64 sm:h-80 lg:h-[360px]" : ""}`}
         style={{ cursor: currentSrc && !isMissing && !isPdfUrl(currentSrc) ? "zoom-in" : "default" }}
         onClick={() => {
           if (currentSrc && !isMissing && !isPdfUrl(currentSrc) && onImageClick) {
@@ -6048,8 +6048,20 @@ export default function App() {
   const activeSecondaryColor = activeNuance.secondaryColor || preset.secondary;
   const dominantHex = getShade(activeDominantColor, activeNuance.dominant);
   const secondaryHex = getShade(activeSecondaryColor, activeNuance.secondary);
-  const accentHex = activeNuance.accent === "bois" ? baseColors.bois.hex : accents[activeNuance.accent]?.hex || accents[globalAccent].hex;
-  const accentName = activeNuance.accent === "bois" ? "Chêne clair" : accents[activeNuance.accent]?.name || accents[globalAccent].name;
+  const accentHex = (() => {
+    const a = activeNuance.accent;
+    if (!a) return globalPalette.accents[0].hex;
+    if (a.startsWith("#")) return a;
+    if (a === "bois") return baseColors.bois.hex;
+    return accents[a]?.hex || globalPalette.accents[0].hex;
+  })();
+  const accentName = (() => {
+    const a = activeNuance.accent;
+    if (!a) return globalPalette.accents[0].name;
+    if (a.startsWith("#")) return globalPalette.accents.find(ac => ac.hex === a)?.name || a.toUpperCase();
+    if (a === "bois") return "Chêne clair";
+    return accents[a]?.name || globalPalette.accents[0].name;
+  })();
 
   const roomPhotosFor3D = [
     ...(materialsByRoom[room] || []).map((m, i) => ({
@@ -7216,8 +7228,8 @@ export default function App() {
     const sColor = nuance.secondaryColor || p.secondary;
     const dHex = getShade(dColor, nuance.dominant);
     const sHex = getShade(sColor, nuance.secondary);
-    const aHex = nuance.accent === "bois" ? baseColors.bois.hex : accents[nuance.accent]?.hex || accents[globalAccent].hex;
-    const aName = nuance.accent === "bois" ? "Chêne clair" : accents[nuance.accent]?.name || accents[globalAccent].name;
+    const aHex = (() => { const a = nuance.accent; if (!a) return globalPalette.accents[0].hex; if (a.startsWith("#")) return a; if (a === "bois") return baseColors.bois.hex; return accents[a]?.hex || globalPalette.accents[0].hex; })();
+    const aName = (() => { const a = nuance.accent; if (!a) return globalPalette.accents[0].name; if (a.startsWith("#")) return globalPalette.accents.find(ac => ac.hex === a)?.name || a.toUpperCase(); if (a === "bois") return "Chêne clair"; return accents[a]?.name || globalPalette.accents[0].name; })();
     return { dominant: { name: getColorName(dColor), hex: dHex }, secondary: { name: getColorName(sColor), hex: sHex }, accent: { name: aName, hex: aHex } };
   };
 
@@ -8305,18 +8317,18 @@ export default function App() {
                   <div>
                     <p className="mb-1.5 text-sm font-medium text-slate-700">Accent pièce</p>
                     <div className="flex gap-2">
-                      {[["bois", "Chêne clair", baseColors.bois.hex], ...Object.entries(accents).map(([k, v]) => [k, v.name, v.hex])].map(([key, name, hex]) => (
+                      {globalPalette.accents.map((accent, i) => (
                         <button
-                          key={key}
+                          key={accent.hex}
                           type="button"
-                          onClick={() => updateRoomNuance("accent", key)}
-                          title={name}
+                          onClick={() => updateRoomNuance("accent", accent.hex)}
+                          title={accent.name}
                           className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-1.5 transition-all ${
-                            activeNuance.accent === key ? "border-slate-900 shadow-sm" : "border-black/10 hover:border-black/30"
+                            activeNuance.accent === accent.hex ? "border-slate-900 shadow-sm" : "border-black/10 hover:border-black/30"
                           }`}
                         >
-                          <span className="block h-6 w-full rounded-md" style={{ backgroundColor: hex }} />
-                          <span className="text-[10px] leading-tight text-slate-500">{name.split(" ")[0]}</span>
+                          <span className="block h-6 w-full rounded-md" style={{ backgroundColor: accent.hex }} />
+                          <span className="text-[10px] leading-tight text-slate-500">{accent.name.split(" ")[0]}</span>
                         </button>
                       ))}
                     </div>
