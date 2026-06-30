@@ -27,7 +27,10 @@ export function useAuth() {
       options: { redirectTo: window.location.href },
     });
 
-  const signOut = () => supabase.auth.signOut();
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   return { user, session, loading, signInWithGoogle, signOut };
 }
