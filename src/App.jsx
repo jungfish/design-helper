@@ -1025,14 +1025,19 @@ function AddMaterialModal({ onAdd, onClose }) {
 
 function LinkAction({ value, onChange }) {
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (open) setDraft(value);
+  }, [open, value]);
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         title="Ajouter un lien"
         aria-label="Ajouter un lien"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen(true)}
         className={`grid h-11 w-11 place-items-center rounded-md border border-black/15 bg-white/90 shadow-sm backdrop-blur hover:bg-white ${
           value ? "ring-2 ring-slate-900/20" : ""
         }`}
@@ -1042,19 +1047,129 @@ function LinkAction({ value, onChange }) {
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
         </svg>
       </button>
-      {open ? (
-        <div className="absolute right-0 top-11 z-50 w-56 rounded-md border border-black/15 bg-white p-2 shadow-xl">
-          <input
-            type="url"
-            autoFocus
-            placeholder="https://..."
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full rounded border border-black/15 bg-white p-2 text-xs"
-          />
-        </div>
+      {open ? createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)}>
+          <div className="mx-4 w-full max-w-xs rounded-xl border border-black/10 bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Lien source</h2>
+            <input
+              type="url"
+              autoFocus
+              placeholder="https://..."
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black/30"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-slate-50">
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => { onChange(draft); setOpen(false); }}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       ) : null}
-    </div>
+    </>
+  );
+}
+
+function AddInspirationModal({ onClose, onFiles, onUrl, onInstagram }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleUrlSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const igData = parseInstagramUrl(trimmed);
+      if (igData) {
+        const preview = await fetchLinkPreview(trimmed);
+        const titleLower = `${preview?.title || ""} ${preview?.description || ""}`.toLowerCase();
+        const type = titleLower.includes("reel") ? "reel" : igData.type;
+        onInstagram({ ...igData, type, thumbnailUrl: preview?.image || null });
+        onClose();
+        return;
+      }
+      const imageUrl = await extractImageFromUrl(trimmed);
+      if (!imageUrl) {
+        setError("Aucune image trouvée à cette adresse.");
+        return;
+      }
+      await onUrl(imageUrl);
+      onClose();
+    } catch {
+      setError("Erreur lors du chargement de l'image.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-black/10 bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Ajouter une inspiration</h2>
+          <button type="button" onClick={onClose} className="text-xl text-slate-400 hover:text-slate-700 leading-none">×</button>
+        </div>
+        <form onSubmit={handleUrlSubmit} className="mb-4">
+          <label className="mb-1.5 block text-xs font-medium text-slate-600">Lien Pinterest ou Instagram</label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              autoFocus
+              value={url}
+              onChange={(e) => { setUrl(e.target.value); setError(null); }}
+              placeholder="https://..."
+              className="flex-1 rounded-lg border border-black/15 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-black/30"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !url.trim()}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-40"
+            >
+              {loading ? <span className="block h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : "OK"}
+            </button>
+          </div>
+          {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+        </form>
+        <div className="flex items-center gap-2 text-xs text-slate-400 mb-4">
+          <div className="h-px flex-1 bg-black/10" />
+          <span>ou</span>
+          <div className="h-px flex-1 bg-black/10" />
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) { onFiles(Array.from(e.target.files)); onClose(); }
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-black/20 py-3 text-sm text-slate-500 hover:bg-slate-50"
+        >
+          Importer des photos
+        </button>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1756,6 +1871,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
   const [instagramModal, setInstagramModal] = useState(null);
   const [page, setPage] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const pageSize = 4;
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
 
@@ -1864,8 +1980,15 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
               </button>
             </div>
           ) : null}
-          <AddUrlButton onUrl={handleAddImageFromUrl} onInstagram={handleAddInstagram} />
-          <AddImageButton onFiles={handleAddImages} />
+          <button
+            type="button"
+            title="Ajouter une inspiration"
+            aria-label="Ajouter une inspiration"
+            onClick={() => setAddModalOpen(true)}
+            className="grid h-11 w-11 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
+          >
+            +
+          </button>
         </div>
       </div>
       {(() => {
@@ -2009,7 +2132,10 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
 
         if (!item0) {
           return (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md">
+            <div
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
+              onClick={() => setAddModalOpen(true)}
+            >
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -2017,7 +2143,7 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
               </svg>
               <div>
                 <p className="text-sm font-semibold text-slate-600">Pas encore d'inspirations</p>
-                <p className="mt-0.5 text-xs text-slate-400">Ajoute tes photos, captures Pinterest ou posts Instagram via les boutons ci-dessus.</p>
+                <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter tes premières inspirations.</p>
               </div>
             </div>
           );
@@ -2083,6 +2209,14 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
         document.body
       )}
       {instagramModal ? <InstagramModal item={instagramModal} onClose={() => setInstagramModal(null)} /> : null}
+      {addModalOpen ? (
+        <AddInspirationModal
+          onClose={() => setAddModalOpen(false)}
+          onFiles={handleAddImages}
+          onUrl={handleAddImageFromUrl}
+          onInstagram={handleAddInstagram}
+        />
+      ) : null}
     </div>
   );
 }
