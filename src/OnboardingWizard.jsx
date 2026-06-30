@@ -29,8 +29,8 @@ function fileToDataUrl(file) {
   });
 }
 
-export function OnboardingWizard({ user, session, onComplete, onJoinProject, onSkip, signOut }) {
-  const [step, setStep] = useState("welcome");
+export function OnboardingWizard({ user, session, onComplete, onJoinProject, onSkip, signOut, initialStep = "welcome" }) {
+  const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
 
   // Create path state
@@ -320,7 +320,7 @@ export function OnboardingWizard({ user, session, onComplete, onJoinProject, onS
             <StepPath
               onCreate={() => goTo("name")}
               onJoin={() => goTo("join")}
-              onBack={() => goTo("welcome", -1)}
+              onBack={() => initialStep !== "welcome" && onSkip ? onSkip() : goTo("welcome", -1)}
             />
           )}
 

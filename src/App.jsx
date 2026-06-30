@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { RoomViewer3D } from "./RoomViewer3D";
+import { OnboardingWizard } from "./OnboardingWizard.jsx";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./useAuth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -5651,6 +5652,7 @@ export default function App() {
   const [renamingProjectId, setRenamingProjectId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(null); // null=detecting, true=show, false=skip
+  const [showNewProjectWizard, setShowNewProjectWizard] = useState(false);
   const [roomLists, setRoomLists] = useState({});
   const [itemReactions, setItemReactions] = useState({});
   const [roomDocuments, setRoomDocuments] = useState({});
@@ -7020,7 +7022,7 @@ export default function App() {
                 <div className="border-t border-black/[0.06] px-3 py-2">
                   <button
                     type="button"
-                    onClick={handleCreateNewProject}
+                    onClick={() => { setShowProjectPicker(false); setShowNewProjectWizard(true); }}
                     className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-[12.5px] text-[#8A8680] transition-colors hover:bg-[#F5F3EE] hover:text-[#1C1A17]"
                   >
                     <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -7879,6 +7881,23 @@ export default function App() {
           ) : null}
         </>,
         document.body
+      )}
+
+      {showNewProjectWizard && (
+        <div className="fixed inset-0 z-[60] bg-[#FAF6F0]">
+          <OnboardingWizard
+            user={user}
+            session={session}
+            initialStep="path"
+            onComplete={(newId) => {
+              setShowNewProjectWizard(false);
+              switchProject(newId);
+            }}
+            onJoinProject={handleJoinProject}
+            onSkip={() => setShowNewProjectWizard(false)}
+            signOut={signOut}
+          />
+        </div>
       )}
     </div>
   );
