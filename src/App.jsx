@@ -6197,6 +6197,7 @@ export default function App() {
     const userId = user.id;
     const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Moi";
     let isAdding = true;
+    let myOtherEmoji = null;
     let itemRoomKey = null;
     let itemText = null;
     setItemReactions(prev => {
@@ -6204,7 +6205,10 @@ export default function App() {
       const mine = existing.find(r => r.userId === userId && r.emoji === emoji);
       isAdding = !mine;
       if (mine) return { ...prev, [itemId]: existing.filter(r => r !== mine) };
-      return { ...prev, [itemId]: [...existing, { id: `optimistic-${Date.now()}`, userId, userName, emoji }] };
+      // Remplacer tout émoji existant de cet utilisateur sur cet article
+      const myOther = existing.find(r => r.userId === userId && r.emoji !== emoji);
+      if (myOther) myOtherEmoji = myOther.emoji;
+      return { ...prev, [itemId]: [...existing.filter(r => r.userId !== userId), { id: `optimistic-${Date.now()}`, userId, userName, emoji }] };
     });
     if (isAdding) {
       for (const [rk, lists] of Object.entries(roomLists)) {
@@ -6212,6 +6216,13 @@ export default function App() {
         if (found) { itemRoomKey = rk; itemText = found.previewTitle || found.text; break; }
       }
       if (itemRoomKey) logActivity("reaction_added", itemRoomKey, { emoji, text: itemText });
+      if (myOtherEmoji) {
+        authedFetch(`${API_BASE}/save-room`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reaction", projectId, itemId, emoji: myOtherEmoji }),
+        }).catch(() => loadReactions(projectId));
+      }
     }
     authedFetch(`${API_BASE}/save-room`, {
       method: "POST",
