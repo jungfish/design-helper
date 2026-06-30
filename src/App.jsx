@@ -2151,18 +2151,20 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
 
         if (!item0) {
           return (
-            <div
-              className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
-              onClick={() => setAddModalOpen(true)}
-            >
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="m21 15-5-5L5 21"/>
-              </svg>
-              <div>
-                <p className="text-sm font-semibold text-slate-600">Pas encore d'inspirations</p>
-                <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter tes premières inspirations.</p>
+            <div className="grid place-items-center py-6 text-center">
+              <div
+                className="flex flex-col items-center gap-3 rounded-xl border border-white/70 bg-white/40 px-8 py-10 shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
+                onClick={() => setAddModalOpen(true)}
+              >
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="m21 15-5-5L5 21"/>
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-slate-600">Pas encore d'inspirations</p>
+                  <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter tes premières inspirations.</p>
+                </div>
               </div>
             </div>
           );
@@ -2507,17 +2509,19 @@ function MaterialsSection({
         </div>
       </div>
       {visibleItems.length === 0 && (
-        <div
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
-          onClick={() => setAddModalOpen(true)}
-        >
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2H2v10l9.29 9.29a1 1 0 001.42 0l6.58-6.58a1 1 0 000-1.42L12 2z"/>
-            <circle cx="7" cy="7" r="1.5" fill="#b0a89a" stroke="none"/>
-          </svg>
-          <div>
-            <p className="text-sm font-semibold text-slate-600">Pas encore de matériaux</p>
-            <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter des matériaux, revêtements ou références produit.</p>
+        <div className="grid place-items-center py-6 text-center">
+          <div
+            className="flex flex-col items-center gap-3 rounded-xl border border-white/70 bg-white/40 px-8 py-10 shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
+            onClick={() => setAddModalOpen(true)}
+          >
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2H2v10l9.29 9.29a1 1 0 001.42 0l6.58-6.58a1 1 0 000-1.42L12 2z"/>
+              <circle cx="7" cy="7" r="1.5" fill="#b0a89a" stroke="none"/>
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-slate-600">Pas encore de matériaux</p>
+              <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter des matériaux, revêtements ou références produit.</p>
+            </div>
           </div>
         </div>
       )}
