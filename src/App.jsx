@@ -5887,13 +5887,25 @@ export default function App() {
       line: p.line || "",
       roomNote: roomNotes[key] || "",
       todoItems: (roomLists[key]?.todos || []).filter((i) => !i.done).slice(0, 5).map((i) => ({ id: i.id, text: i.text })),
-      shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => ({ id: i.id, text: i.text })),
+      shoppingItems: (roomLists[key]?.shopping || []).filter((i) => !i.done).slice(0, 3).map((i) => {
+          const rxs = itemReactions[i.id];
+          if (!rxs?.length) return { id: i.id, text: i.text };
+          const grouped = {};
+          rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
+          return { id: i.id, text: i.text, reactions: grouped };
+        }),
       materialSummary: (materialsByRoom[key] || []).map((m) => `${m.label}: ${m.value}`).slice(0, 3),
     };
   }).filter(Boolean) : [];
 
   const aiShoppingItems = (roomLists[room]?.shopping || [])
-    .filter((i) => !i.done).slice(0, 5).map((i) => ({ id: i.id, text: i.text }));
+    .filter((i) => !i.done).slice(0, 5).map((i) => {
+      const rxs = itemReactions[i.id];
+      if (!rxs?.length) return { id: i.id, text: i.text };
+      const grouped = {};
+      rxs.forEach(r => { if (!grouped[r.emoji]) grouped[r.emoji] = []; grouped[r.emoji].push(r.userName); });
+      return { id: i.id, text: i.text, reactions: grouped };
+    });
 
   const aiTodoItems = (roomLists[room]?.todos || [])
     .filter((i) => !i.done).slice(0, 8).map((i) => ({ id: i.id, text: i.text }));
