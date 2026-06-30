@@ -1612,6 +1612,7 @@ function PlanPreview({
   const [missingCards, setMissingCards] = useState({});
   const [index, setIndex] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const addFileInputRef = useRef(null);
 
   useEffect(() => {
     setIndex(0);
@@ -1691,7 +1692,22 @@ function PlanPreview({
               </button>
             </div>
           ) : null}
-          <AddImageButton onFile={handleAddImage} accept="image/*,application/pdf" />
+          <input
+            ref={addFileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.[0]) handleAddImage(e.target.files[0]); e.target.value = ""; }}
+          />
+          <button
+            type="button"
+            title="Ajouter un plan ou une photo"
+            aria-label="Ajouter un plan ou une photo"
+            onClick={() => addFileInputRef.current?.click()}
+            className="grid h-11 w-11 place-items-center rounded-full border border-black/15 bg-white text-lg leading-none shadow-sm hover:bg-[#fcf8d5]"
+          >
+            +
+          </button>
         </div>
       </div>
       <div
@@ -1729,7 +1745,10 @@ function PlanPreview({
           )
         ) : (
           <div className="grid h-full place-items-center p-6 text-center">
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-white/70 bg-white/40 px-8 py-10 shadow-sm backdrop-blur-md">
+            <div
+              className="flex flex-col items-center gap-3 rounded-xl border border-white/70 bg-white/40 px-8 py-10 shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
+              onClick={() => addFileInputRef.current?.click()}
+            >
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 9 12 2 21 9"/>
                 <path d="M3 9v11a2 2 0 002 2h14a2 2 0 002-2V9"/>
@@ -1737,7 +1756,7 @@ function PlanPreview({
               </svg>
               <div>
                 <p className="text-sm font-semibold text-slate-600">Pas encore de plan</p>
-                <p className="mt-0.5 text-xs text-slate-400">Ajoute un plan d'architecte, une photo ou un PDF via le bouton ci-dessus.</p>
+                <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter un plan, une photo ou un PDF.</p>
               </div>
             </div>
           </div>
@@ -2488,14 +2507,17 @@ function MaterialsSection({
         </div>
       </div>
       {visibleItems.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md">
+        <div
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-white/70 bg-white/50 py-12 text-center shadow-sm backdrop-blur-md cursor-pointer transition-shadow hover:shadow-lg"
+          onClick={() => setAddModalOpen(true)}
+        >
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2H2v10l9.29 9.29a1 1 0 001.42 0l6.58-6.58a1 1 0 000-1.42L12 2z"/>
             <circle cx="7" cy="7" r="1.5" fill="#b0a89a" stroke="none"/>
           </svg>
           <div>
             <p className="text-sm font-semibold text-slate-600">Pas encore de matériaux</p>
-            <p className="mt-0.5 text-xs text-slate-400">Ajoute des matériaux, revêtements ou références produit via le bouton +.</p>
+            <p className="mt-0.5 text-xs text-slate-400">Clique pour ajouter des matériaux, revêtements ou références produit.</p>
           </div>
         </div>
       )}
