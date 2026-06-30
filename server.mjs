@@ -150,7 +150,7 @@ createServer(async (req, res) => {
     if (req.url.startsWith("/api/load-project")) {
       const urlObj = new URL(req.url, "http://localhost");
       const id = urlObj.searchParams.get("id");
-      if (!id || !/^[a-z0-9]{6,16}$/.test(id)) { sendJson(res, 400, { error: "ID invalide." }); return; }
+      if (!id || !/^[a-z0-9-]{6,16}$/.test(id)) { sendJson(res, 400, { error: "ID invalide." }); return; }
       const SUPABASE_URL = process.env.SUPABASE_URL;
       if (!SUPABASE_URL) { sendJson(res, 500, { error: "Configuration Supabase manquante." }); return; }
       const user = await getAuthUser(req);

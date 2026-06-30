@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   if (!user || !token) return corsResponse(401, { error: "Authentification requise." });
 
   const id = new URL(req.url).searchParams.get("id");
-  if (!id || !/^[a-z0-9]{6,16}$/.test(id)) return corsResponse(400, { error: "ID invalide." });
+  if (!id || !/^[a-z0-9-]{6,16}$/.test(id)) return corsResponse(400, { error: "ID invalide." });
 
   try {
     const supabaseUser = supabaseWithToken(token);
