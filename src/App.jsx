@@ -2695,7 +2695,7 @@ function MaterialsSection({
 function GeneralPaletteSection({ orderedActiveRooms, allRoomPresets, getRoomColors, onNavigateToRoom }) {
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
         <h2 className="type-h2">Palette de l'appartement</h2>
         <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs. Cliquer pour accéder à une pièce.</p>
@@ -2741,7 +2741,7 @@ function GeneralPaletteSection({ orderedActiveRooms, allRoomPresets, getRoomColo
 
 function GeneralContextSection({ generalContext, setGeneralContext }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
       <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Appartement</p>
       <h2 className="type-h2">Contexte & goûts de design</h2>
       <p className="mt-1 mb-3 text-sm text-slate-600">
@@ -2785,7 +2785,7 @@ function GeneralResourcesSection({ generalResources, setGeneralResources }) {
   };
 
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
       <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Appartement</p>
       <h2 className="type-h2">Documents</h2>
       <p className="mt-1 mb-3 text-sm text-slate-600">
@@ -2876,7 +2876,7 @@ function DocumentsGlobalView({ orderedActiveRooms, allRoomPresets, roomDocuments
 
   return (
     <>
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
         <h2 className="type-h2">Documents par pièce</h2>
         <p className="mt-1 text-sm text-slate-600">Devis, plans et fichiers uploadés dans chaque pièce.</p>
@@ -2890,7 +2890,7 @@ function DocumentsGlobalView({ orderedActiveRooms, allRoomPresets, roomDocuments
           const p = allRoomPresets[key];
           const docs = roomDocuments[key] || [];
           return (
-            <div key={key} className="rounded-xl border border-black/10 bg-white p-4">
+            <div key={key} className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
               <h3 className="mb-3 font-medium text-slate-900">{p?.label || key}</h3>
               <ul className="space-y-1.5">
                 {docs.map((doc) => (
@@ -2954,7 +2954,7 @@ function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussions
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
         <h2 className="type-h2">Toutes les discussions</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -2990,7 +2990,7 @@ function DiscussionsGlobalView({ orderedActiveRooms, allRoomPresets, discussions
         });
         if (discussions.length === 0) return null;
         return (
-          <div key={roomKey} className="rounded-xl border border-black/10 bg-white p-4">
+          <div key={roomKey} className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
             <h3 className="mb-3 font-medium text-slate-900">
               {roomKey === "general" ? "Appartement" : allRoomPresets[roomKey]?.label}
             </h3>
@@ -3524,7 +3524,7 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Discussions</p>
@@ -3570,19 +3570,21 @@ function DiscussionsPanel({ room, projectId, user, isOwner, discussions, onDiscu
       {loading && (discussions || []).length === 0 ? (
         <div className="rounded-xl border border-black/10 bg-white p-6 text-center text-sm text-slate-400">Chargement…</div>
       ) : filteredDiscussions.length === 0 ? (
-        <div className="grid place-items-center py-6 text-center">
-          <div
-            className={`flex flex-col items-center gap-3 rounded-xl border border-white/70 bg-white/40 px-8 py-10 shadow-sm backdrop-blur-md transition-shadow ${filter === 'all' ? 'cursor-pointer hover:shadow-lg' : ''}`}
-            onClick={filter === 'all' ? () => setShowCreate(true) : undefined}
-          >
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            <div>
-              <p className="text-sm font-semibold text-slate-600">
-                {filter === 'all' ? "Pas encore de discussions" : 'Aucun fil dans cette catégorie.'}
-              </p>
-              {filter === 'all' && <p className="mt-0.5 text-xs text-slate-400">Clique pour créer le premier fil d'échange.</p>}
+        <div className="rounded-xl border border-black/10 bg-white">
+          <div className="grid place-items-center py-6 text-center">
+            <div
+              className={`flex flex-col items-center gap-3 rounded-xl border border-black/[0.06] bg-slate-50 px-8 py-10 transition-shadow ${filter === 'all' ? 'cursor-pointer hover:shadow-md' : ''}`}
+              onClick={filter === 'all' ? () => setShowCreate(true) : undefined}
+            >
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#b0a89a" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-slate-600">
+                  {filter === 'all' ? "Pas encore de discussions" : 'Aucun fil dans cette catégorie.'}
+                </p>
+                {filter === 'all' && <p className="mt-0.5 text-xs text-slate-400">Clique pour créer le premier fil d'échange.</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -4480,7 +4482,7 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
         <h2 className="type-h2">Tous les todos</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -4530,7 +4532,7 @@ function TodosGlobalView({ orderedActiveRooms, allRoomPresets, roomLists, setRoo
         const inputVal = roomInputs[key] || "";
         const addListKey = filter === "shopping" ? "shopping" : "todos";
         return (
-          <div key={key} className="rounded-xl border border-black/10 bg-white p-4">
+          <div key={key} className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-medium text-slate-900">{preset?.label}</h3>
               {!isOpen && (
@@ -4761,8 +4763,8 @@ function DocumentsSection({ room, roomDocuments, setRoomDocuments, projectId, sa
 
   return (
     <div
-      className={`col-span-full rounded-xl border bg-white p-4 transition-colors ${
-        docsDragging ? "border-[#CDAA73] bg-[#FCF8D5]/30" : "border-black/10"
+      className={`col-span-full rounded-xl border p-4 transition-colors ${
+        docsDragging ? "border-[#CDAA73] bg-[#FCF8D5]/30" : "border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6]"
       }`}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={(e) => {
@@ -5384,10 +5386,10 @@ function ListeSection({ room, label, roomLists, setRoomLists, projectId, saveRoo
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         {renderList("shopping", shopping, shopInput, setShopInput, "Mes envies", label, "Ajouter une envie…")}
       </div>
-      <div className="rounded-xl border border-black/10 bg-white p-4">
+      <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
         {renderList("todos", todos, todoInput, setTodoInput, "À faire", "Tâches", "Ajouter une tâche…")}
       </div>
     </div>
@@ -8124,7 +8126,7 @@ export default function App() {
                     : globalPalette[activePaletteSlot]?.hex
                   : null;
                 return (
-                  <div className="space-y-3 rounded-xl border border-black/10 bg-white p-4">
+                  <div className="space-y-3 rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette de l'appartement</p>
                       <p className="text-[11px] text-slate-400">Cliquer une couleur pour la modifier</p>
@@ -8206,7 +8208,7 @@ export default function App() {
                   </div>
                 );
               })()}
-              <div className="rounded-xl border border-black/10 bg-white p-4">
+              <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
                 <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
                 <h2 className="type-h2">Couleurs par pièce</h2>
                 <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs choisies.</p>
@@ -8352,7 +8354,7 @@ export default function App() {
                     : globalPalette[activePaletteSlot]?.hex
                   : null;
                 return (
-                  <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+                  <div className="space-y-4 rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
                     <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
                     <h2 className="type-h2">Palette de l'appartement</h2>
 
@@ -8444,7 +8446,7 @@ export default function App() {
                 );
               })()}
 
-              <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+              <div className="space-y-4 rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
                 <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Pièce active</p>
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="type-h2">{preset.label}</h2>
@@ -8561,7 +8563,7 @@ export default function App() {
               </div>
             </section>
 
-            <div className="rounded-xl border border-black/10 bg-white p-4">
+            <div className="rounded-xl border border-black/10 bg-gradient-to-br from-[#fdf9f4] to-[#e8e1d6] p-4">
               <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Aperçu visuel</p>
               <h2 className="type-h2">Nuancier Recommandé</h2>
               <p className="mt-1 text-sm text-slate-600">Répartition visuelle pour garder un cap cohérent dans la pièce active.</p>
