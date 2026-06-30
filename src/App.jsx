@@ -2906,14 +2906,14 @@ function ProductCarousel({ links }) {
           <button
             type="button"
             onClick={() => scroll(-1)}
-            className="absolute -left-1 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-full bg-white shadow-md border border-black/10 text-slate-600 hover:bg-slate-50"
+            className="absolute -left-1 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-full bg-[#2f2f2f] border border-white/15 text-white/60 hover:bg-[#3a3a3a]"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
           <button
             type="button"
             onClick={() => scroll(1)}
-            className="absolute -right-1 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-full bg-white shadow-md border border-black/10 text-slate-600 hover:bg-slate-50"
+            className="absolute -right-1 top-1/2 -translate-y-1/2 grid h-6 w-6 place-items-center rounded-full bg-[#2f2f2f] border border-white/15 text-white/60 hover:bg-[#3a3a3a]"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
@@ -3674,10 +3674,10 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
   const visibleImages = (roomImages || []).filter((img) => img.src && !isPdfUrl(img.src));
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-black/8">
+    <div className="flex flex-col flex-1 min-h-0 bg-[#212121]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 shrink-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-slate-300 shrink-0">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
@@ -3687,7 +3687,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
             <button
               type="button"
               onClick={() => setChatHistory((prev) => ({ ...prev, [room]: [] }))}
-              className="text-xs text-slate-400 hover:text-slate-500 transition-colors"
+              className="text-xs text-white/30 hover:text-white/50 transition-colors"
             >
               Effacer
             </button>
@@ -3698,7 +3698,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
             <button
               type="button"
               onClick={onToggleExpand}
-              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="grid h-7 w-7 place-items-center rounded-md text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors"
               aria-label={isExpanded ? "Réduire" : "Élargir"}
               title={isExpanded ? "Réduire" : "Élargir"}
             >
@@ -3717,7 +3717,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
             <button
               type="button"
               onClick={onClose}
-              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="grid h-7 w-7 place-items-center rounded-md text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors"
               aria-label="Fermer"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -3728,16 +3728,16 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-1 px-4 py-3">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
             <div className="flex flex-col items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+              <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white/60">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
                 </svg>
               </div>
-              <p className="text-sm text-slate-500 leading-snug max-w-[200px]">{isGeneral ? "Que puis-je faire pour votre" : "Que puis-je faire pour"} <span className="font-medium text-slate-700">{isGeneral ? "appartement" : aiContext.roomLabel}</span> ?</p>
+              <p className="text-sm text-white/40 leading-snug max-w-[200px]">{isGeneral ? "Que puis-je faire pour votre" : "Que puis-je faire pour"} <span className="font-medium text-white/70">{isGeneral ? "appartement" : aiContext.roomLabel}</span> ?</p>
             </div>
             <div className="flex flex-wrap justify-center gap-1.5">
               {[
@@ -3750,7 +3750,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                   key={label}
                   type="button"
                   onClick={() => sendMessage(label)}
-                  className="rounded-full border border-black/12 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:border-black/20 transition-colors"
+                  className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:bg-white/10 hover:border-white/25 transition-colors"
                 >
                   {icon && <span className="mr-1">{icon}</span>}{label}
                 </button>
@@ -3759,13 +3759,16 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
           </div>
         ) : (
           messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] space-y-2 rounded-2xl px-4 py-3 text-sm ${
+            <div key={msg.id} className={`flex gap-3 py-1 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "assistant" && (
+                <div className="shrink-0 h-6 w-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-[10px] mt-0.5">✦</div>
+              )}
+              <div className={`space-y-2 text-sm ${
                 msg.role === "user"
-                  ? "rounded-br-sm bg-slate-900 text-white"
+                  ? "w-fit max-w-[80%] rounded-2xl px-4 py-2.5 bg-[#2f2f2f] text-white"
                   : msg.error
-                  ? "rounded-bl-sm bg-red-50 text-red-700 border border-red-100"
-                  : "rounded-bl-sm bg-[#f9f7f3] border border-black/10 text-slate-800"
+                  ? "flex-1 min-w-0 rounded-lg px-3 py-2 bg-red-900/30 text-red-300 border border-red-800/40"
+                  : "flex-1 min-w-0 text-slate-200 leading-relaxed"
               }`}>
                 {(msg.images?.length > 0 || msg.image) ? (
                   <div className="mb-1 flex flex-wrap gap-1">
@@ -3783,10 +3786,10 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                   <div className="mt-2 space-y-2">
                     <img src={msg.generatedImage} alt="Image générée" className="w-full rounded-lg" />
                     {addedToSection === msg.generatedImage ? (
-                      <p className="text-xs text-green-600 font-medium">Ajouté ✓</p>
+                      <p className="text-xs text-green-400 font-medium">Ajouté ✓</p>
                     ) : addingSectionFor === msg.generatedImage ? (
                       <div className="space-y-1.5">
-                        <p className="text-xs text-slate-500">Ajouter à :</p>
+                        <p className="text-xs text-white/40">Ajouter à :</p>
                         <div className="flex flex-wrap gap-1.5">
                           {addAiInspiration && (
                             <button
@@ -3797,7 +3800,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                                 setAddedToSection(msg.generatedImage);
                                 setTimeout(() => setAddedToSection(null), 2000);
                               }}
-                              className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700"
+                              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-900 hover:bg-white/90"
                             >
                               Inspirations
                             </button>
@@ -3811,7 +3814,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                                 setAddedToSection(msg.generatedImage);
                                 setTimeout(() => setAddedToSection(null), 2000);
                               }}
-                              className="rounded-full border border-black/20 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/70 hover:bg-white/15"
                             >
                               Plans
                             </button>
@@ -3819,7 +3822,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                           <button
                             type="button"
                             onClick={() => setAddingSectionFor(null)}
-                            className="px-1 text-xs text-slate-400 hover:text-slate-600"
+                            className="px-1 text-xs text-white/30 hover:text-white/50"
                           >
                             Annuler
                           </button>
@@ -3829,7 +3832,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                       <button
                         type="button"
                         onClick={() => setAddingSectionFor(msg.generatedImage)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-black/20 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/60 hover:bg-white/15"
                       >
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 5v14M5 12h14"/>
@@ -3843,7 +3846,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                   <div className="mt-2">
                     {pendingPrompt === msg.imagePrompt ? (
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-slate-600">Choisir une image à modifier :</p>
+                        <p className="text-xs font-medium text-white/50">Choisir une image à modifier :</p>
                         <div className="flex flex-wrap gap-2">
                           {visibleImages.map((img) => (
                             <button
@@ -3851,7 +3854,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                               type="button"
                               disabled={!!generatingFor}
                               onClick={() => generateFromPrompt(img.src, msg.imagePrompt)}
-                              className="relative h-16 w-24 overflow-hidden rounded border border-black/15 hover:border-slate-900 disabled:opacity-50"
+                              className="relative h-16 w-24 overflow-hidden rounded border border-white/15 hover:border-white/50 disabled:opacity-50"
                             >
                               {generatingFor === img.src ? (
                                 <div className="absolute inset-0 flex items-center justify-center bg-white/80">
@@ -3868,7 +3871,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                         <button
                           type="button"
                           onClick={() => setPendingPrompt(null)}
-                          className="text-xs text-slate-400 hover:text-slate-600"
+                          className="text-xs text-white/30 hover:text-white/50"
                         >
                           Annuler
                         </button>
@@ -3877,7 +3880,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
                       <button
                         type="button"
                         onClick={() => setPendingPrompt(msg.imagePrompt)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-black/20 bg-[#fcf8d5] px-3 py-1 text-xs font-medium text-slate-700 hover:bg-[#f5efb0]"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/60 hover:bg-white/15"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
@@ -3892,29 +3895,31 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
           ))
         )}
         {isLoading ? (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm border border-black/10 bg-[#f9f7f3] px-4 py-3 text-sm text-slate-500">
-              <span className="animate-pulse">…</span>
+          <div className="flex gap-3 justify-start py-1">
+            <div className="shrink-0 h-6 w-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-[10px] mt-0.5">✦</div>
+            <div className="flex items-center gap-1 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]"/>
+              <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]"/>
+              <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]"/>
             </div>
           </div>
         ) : null}
         {generatingFor ? (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm border border-black/10 bg-[#f9f7f3] px-4 py-3 text-sm text-slate-500">
-              <div className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h-4z" />
-                </svg>
-                <span>Génération de l'image en cours…</span>
-              </div>
+          <div className="flex gap-3 justify-start py-1">
+            <div className="shrink-0 h-6 w-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-[10px] mt-0.5">✦</div>
+            <div className="flex items-center gap-2 text-sm text-white/40 py-1">
+              <svg className="animate-spin h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12 12h-4z" />
+              </svg>
+              <span>Génération de l'image en cours…</span>
             </div>
           </div>
         ) : null}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-black/8 p-3">
+      <div className="border-t border-white/8 p-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -3923,12 +3928,12 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
           className="hidden"
           onChange={handleImagePick}
         />
-        <div className="rounded-xl border border-black/12 bg-[#f9f7f3] overflow-hidden focus-within:border-slate-400 focus-within:bg-white transition-colors">
+        <div className="rounded-xl border border-white/10 bg-[#2f2f2f] overflow-hidden focus-within:border-white/25 transition-colors">
           {pendingImages.length > 0 ? (
             <div className="flex flex-wrap items-end gap-2 px-3 pt-3">
               {pendingImages.map((img, i) => (
                 <div key={i} className="relative">
-                  <img src={img} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-black/10" />
+                  <img src={img} alt="preview" className="h-14 w-14 rounded-lg object-cover border border-white/10" />
                   <button
                     type="button"
                     onClick={() => setPendingImages((prev) => prev.filter((_, j) => j !== i))}
@@ -3957,15 +3962,15 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
               }
             }}
             placeholder="Pose une question sur cette pièce…"
-            rows={5}
-            className="w-full resize-none bg-transparent px-3 pt-3 pb-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none overflow-hidden"
+            rows={1}
+            className="w-full resize-none bg-transparent px-3 pt-3 pb-2 text-sm text-white placeholder:text-white/30 focus:outline-none overflow-hidden"
           />
           <div className="flex items-center justify-between px-2 pb-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-black/5 disabled:opacity-40 transition-colors"
+              className="grid h-7 w-7 place-items-center rounded-md text-white/30 hover:text-white/60 hover:bg-white/8 disabled:opacity-40 transition-colors"
               title="Joindre des photos"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3976,7 +3981,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
               type="button"
               onClick={() => sendMessage()}
               disabled={(!input.trim() && !pendingImages.length) || isLoading}
-              className="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-white disabled:opacity-30 hover:bg-slate-700 transition-colors"
+              className="grid h-7 w-7 place-items-center rounded-full bg-white text-slate-900 disabled:opacity-25 hover:bg-white/90 transition-colors"
               title="Envoyer (Cmd+Entrée)"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -3985,7 +3990,7 @@ function ChatPanel({ room, isGeneral = false, availableRooms = [], aiContext, ch
             </button>
           </div>
         </div>
-        <p className="mt-1.5 text-center text-[10px] text-slate-400">Cmd+Entrée pour envoyer</p>
+        <p className="mt-1.5 text-center text-[10px] text-white/20">Cmd+Entrée pour envoyer</p>
       </div>
     </div>
   );
