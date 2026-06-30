@@ -1995,6 +1995,15 @@ function Inspirations({ room, label, uploadedImages, setUploadedImages, inspirat
           );
         };
 
+        if (!item0) {
+          return (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-black/15 bg-[#faf7f2] py-12 text-center">
+              <p className="text-sm font-semibold text-slate-600">Pas encore d'inspirations</p>
+              <p className="text-xs text-slate-400">Ajoute tes photos, captures Pinterest ou posts Instagram via les boutons ci-dessus.</p>
+            </div>
+          );
+        }
+
         if (!item1) {
           return renderCard(item0, { aspectRatio: "16/9" });
         }
@@ -2214,7 +2223,10 @@ function MaterialsSection({
   onImageClick,
 }) {
   const items = [
-    ...(materialsByRoom[room] || []).map((item, i) => ({ item, cardKey: `${room}-material-${i}`, index: i })),
+    ...(materialsByRoom[room] || []).flatMap((item, i) => {
+      const cardKey = `${room}-material-${i}`;
+      return materialUploads[cardKey] ? [{ item, cardKey, index: i }] : [];
+    }),
     ...(extraMaterialImages[room] || []).map((entry, i) => {
       const isLink = entry && typeof entry === "object" && entry.type === "link";
       const cardKey = `${room}-material-extra-${i}`;
@@ -5890,12 +5902,16 @@ export default function App() {
   const [globalAccent, setGlobalAccent] = useState("butter");
   const [globalShade, setGlobalShade] = useState("moyen");
   const [globalDominantColor, setGlobalDominantColor] = useState("bleu");
-  const [globalPalette, setGlobalPalette] = useState([
-    { role: "dominante", hex: "#b8c9d0", name: "Bleu grisé" },
-    { role: "secondaire", hex: "#F4F1EA", name: "Crème chaud" },
-    { role: "tierce", hex: "#A8B5A2", name: "Vert sauge" },
-    { role: "accent", hex: "#D0AA6C", name: "Chêne doré" },
-  ]);
+  const [globalPalette, setGlobalPalette] = useState({
+    dominante: { hex: "#b8c9d0", name: "Bleu grisé" },
+    secondaire: { hex: "#F4F1EA", name: "Crème chaud" },
+    sol: { hex: "#C2B09A", name: "Taupe moyen" },
+    accents: [
+      { hex: "#D0AA6C", name: "Chêne doré" },
+      { hex: "#FCF8D5", name: "Beurre" },
+      { hex: "#B7C3A5", name: "Olive doux" },
+    ],
+  });
   const [activePaletteSlot, setActivePaletteSlot] = useState(null);
   const [warmth, setWarmth] = useState(60);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -6553,7 +6569,9 @@ export default function App() {
     if (cfg.globalAccent) setGlobalAccent(cfg.globalAccent);
     if (cfg.globalShade) setGlobalShade(cfg.globalShade);
     if (cfg.globalDominantColor) setGlobalDominantColor(cfg.globalDominantColor);
-    if (Array.isArray(cfg.globalPalette) && cfg.globalPalette.length === 4) setGlobalPalette(cfg.globalPalette);
+    if (cfg.globalPalette && !Array.isArray(cfg.globalPalette) && cfg.globalPalette.dominante) {
+      setGlobalPalette(cfg.globalPalette);
+    }
     if (typeof cfg.warmth === "number") setWarmth(cfg.warmth);
     if (Array.isArray(cfg.customRooms)) setCustomRooms(cfg.customRooms);
     if (Array.isArray(cfg.hiddenRooms)) setHiddenRooms(cfg.hiddenRooms);
@@ -6708,12 +6726,16 @@ export default function App() {
     setGlobalAccent("butter");
     setGlobalShade("moyen");
     setGlobalDominantColor("bleu");
-    setGlobalPalette([
-      { role: "dominante", hex: "#b8c9d0", name: "Bleu grisé" },
-      { role: "secondaire", hex: "#F4F1EA", name: "Crème chaud" },
-      { role: "tierce", hex: "#A8B5A2", name: "Vert sauge" },
-      { role: "accent", hex: "#D0AA6C", name: "Chêne doré" },
-    ]);
+    setGlobalPalette({
+      dominante: { hex: "#b8c9d0", name: "Bleu grisé" },
+      secondaire: { hex: "#F4F1EA", name: "Crème chaud" },
+      sol: { hex: "#C2B09A", name: "Taupe moyen" },
+      accents: [
+        { hex: "#D0AA6C", name: "Chêne doré" },
+        { hex: "#FCF8D5", name: "Beurre" },
+        { hex: "#B7C3A5", name: "Olive doux" },
+      ],
+    });
     setRoomOrder(null);
     setChatHistory({});
     setProjectId(id);
@@ -6758,12 +6780,16 @@ export default function App() {
     setGlobalAccent("butter");
     setGlobalShade("moyen");
     setGlobalDominantColor("bleu");
-    setGlobalPalette([
-      { role: "dominante", hex: "#b8c9d0", name: "Bleu grisé" },
-      { role: "secondaire", hex: "#F4F1EA", name: "Crème chaud" },
-      { role: "tierce", hex: "#A8B5A2", name: "Vert sauge" },
-      { role: "accent", hex: "#D0AA6C", name: "Chêne doré" },
-    ]);
+    setGlobalPalette({
+      dominante: { hex: "#b8c9d0", name: "Bleu grisé" },
+      secondaire: { hex: "#F4F1EA", name: "Crème chaud" },
+      sol: { hex: "#C2B09A", name: "Taupe moyen" },
+      accents: [
+        { hex: "#D0AA6C", name: "Chêne doré" },
+        { hex: "#FCF8D5", name: "Beurre" },
+        { hex: "#B7C3A5", name: "Olive doux" },
+      ],
+    });
     setRoomOrder(null);
     setChatHistory({});
     setShowProjectPicker(false);
@@ -7285,10 +7311,10 @@ export default function App() {
       >
         <div className="flex h-14 flex-shrink-0 items-center gap-2.5 border-b border-black/[0.08] bg-[#F2EFE7] px-3.5">
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-            <rect x="0" y="0" width="9.5" height="9.5" rx="2" fill={baseColors.bleu[shadeMap[globalShade]]}/>
-            <rect x="12.5" y="0" width="9.5" height="9.5" rx="2" fill={baseColors.vert[shadeMap[globalShade]]}/>
-            <rect x="0" y="12.5" width="9.5" height="9.5" rx="2" fill={baseColors.bois[shadeMap[globalShade]]}/>
-            <rect x="12.5" y="12.5" width="9.5" height="9.5" rx="2" fill={baseColors.creme[shadeMap[globalShade]]} stroke="rgba(0,0,0,0.12)" strokeWidth="0.75"/>
+            <rect x="0" y="0" width="9.5" height="9.5" rx="2" fill={globalPalette.dominante.hex}/>
+            <rect x="12.5" y="0" width="9.5" height="9.5" rx="2" fill={globalPalette.secondaire.hex}/>
+            <rect x="0" y="12.5" width="9.5" height="9.5" rx="2" fill={globalPalette.sol.hex}/>
+            <rect x="12.5" y="12.5" width="9.5" height="9.5" rx="2" fill={globalPalette.accents[0].hex} stroke="rgba(0,0,0,0.12)" strokeWidth="0.75"/>
           </svg>
           <span className="text-[15px] font-bold tracking-[-0.02em] text-[#1C1A17]">renoom</span>
         </div>
@@ -7845,9 +7871,116 @@ export default function App() {
             />
           ) : generalMode === "couleurs" ? (
             <>
+              {/* Palette globale — vue générale */}
+              {(() => {
+                const ROLE_TO_ROOM_KEY = { dominante: "dominantColor", secondaire: "secondaryColor", sol: "solColor" };
+                const applyColor = (slotKey, hex, name) => {
+                  setGlobalPalette(prev => {
+                    if (slotKey.startsWith("accent-")) {
+                      const idx = parseInt(slotKey.split("-")[1]);
+                      const newAccents = [...prev.accents];
+                      newAccents[idx] = { hex, name };
+                      return { ...prev, accents: newAccents };
+                    }
+                    return { ...prev, [slotKey]: { hex, name } };
+                  });
+                  const roomKey = ROLE_TO_ROOM_KEY[slotKey];
+                  if (roomKey) {
+                    setRoomNuances(prev => {
+                      const updated = { ...prev };
+                      orderedActiveRooms.forEach(k => {
+                        updated[k] = { ...(prev[k] || INITIAL_ROOM_NUANCES[k] || {}), [roomKey]: hex };
+                      });
+                      return updated;
+                    });
+                  }
+                };
+                const mainSlots = [
+                  { key: "dominante", label: "Dominante", ...globalPalette.dominante },
+                  { key: "secondaire", label: "Secondaire", ...globalPalette.secondaire },
+                  { key: "sol", label: "Sol", ...globalPalette.sol },
+                ];
+                const currentHex = activePaletteSlot
+                  ? activePaletteSlot.startsWith("accent-")
+                    ? globalPalette.accents[parseInt(activePaletteSlot.split("-")[1])]?.hex
+                    : globalPalette[activePaletteSlot]?.hex
+                  : null;
+                return (
+                  <div className="space-y-3 rounded-xl border border-black/10 bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette de l'appartement</p>
+                      <p className="text-[11px] text-slate-400">Cliquer une couleur pour la modifier</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {mainSlots.map(slot => (
+                        <button
+                          key={slot.key}
+                          type="button"
+                          onClick={() => setActivePaletteSlot(activePaletteSlot === slot.key ? null : slot.key)}
+                          className={`flex flex-1 flex-col overflow-hidden rounded-xl border transition-all ${
+                            activePaletteSlot === slot.key ? "border-slate-900 shadow-md" : "border-black/10 hover:border-black/30"
+                          }`}
+                        >
+                          <span className="block h-12 w-full" style={{ backgroundColor: slot.hex }} />
+                          <span className="px-1 py-1 text-center">
+                            <span className="block text-[10px] font-medium text-slate-700 truncate">{slot.name}</span>
+                            <span className="block text-[9px] text-slate-400">{slot.label}</span>
+                          </span>
+                        </button>
+                      ))}
+                      {globalPalette.accents.map((accent, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActivePaletteSlot(activePaletteSlot === `accent-${i}` ? null : `accent-${i}`)}
+                          className={`flex flex-1 flex-col overflow-hidden rounded-xl border transition-all ${
+                            activePaletteSlot === `accent-${i}` ? "border-slate-900 shadow-md" : "border-black/10 hover:border-black/30"
+                          }`}
+                        >
+                          <span className="block h-12 w-full" style={{ backgroundColor: accent.hex }} />
+                          <span className="px-1 py-1 text-center">
+                            <span className="block text-[10px] font-medium text-slate-700 truncate">{accent.name}</span>
+                            <span className="block text-[9px] text-slate-400">Accent {i + 1}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {activePaletteSlot !== null && currentHex && (
+                      <div className="space-y-3 rounded-xl border border-black/10 bg-slate-50 p-3">
+                        <div className="grid grid-cols-7 gap-1.5">
+                          {PALETTE_PRESETS.map(preset => (
+                            <button
+                              key={preset.hex}
+                              type="button"
+                              onClick={() => applyColor(activePaletteSlot, preset.hex, preset.name)}
+                              title={preset.name}
+                              className={`h-7 rounded-lg border-2 transition-all ${
+                                currentHex === preset.hex ? "border-slate-900" : "border-transparent hover:border-black/30"
+                              }`}
+                              style={{ backgroundColor: preset.hex }}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                              type="color"
+                              value={currentHex}
+                              onChange={e => applyColor(activePaletteSlot, e.target.value, "Personnalisée")}
+                              className="h-7 w-7 cursor-pointer rounded border border-black/15"
+                            />
+                            <span className="text-xs text-slate-500">Couleur libre</span>
+                          </label>
+                          <span className="ml-auto font-mono text-[11px] text-slate-400">{currentHex}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="rounded-xl border border-black/10 bg-white p-4">
                 <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Vue d'ensemble</p>
-                <h2 className="type-h2">Palette de l'appartement</h2>
+                <h2 className="type-h2">Couleurs par pièce</h2>
                 <p className="mt-1 text-sm text-slate-600">Toutes les pièces et leurs couleurs choisies.</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -7954,107 +8087,122 @@ export default function App() {
         ) : roomMode === "couleurs" ? (
           <>
             <section className="grid gap-6 xl:grid-cols-2">
-              <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
-                <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
-                <h2 className="type-h2">Palette de l'appartement</h2>
-
-                {/* 4 slots couleur */}
-                <div className="grid grid-cols-4 gap-2">
-                  {globalPalette.map((slot, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setActivePaletteSlot(activePaletteSlot === i ? null : i)}
-                      className={`flex flex-col overflow-hidden rounded-xl border transition-all ${
-                        activePaletteSlot === i ? "border-slate-900 shadow-md" : "border-black/10 hover:border-black/30"
-                      }`}
-                    >
-                      <span className="block h-14 w-full" style={{ backgroundColor: slot.hex }} />
-                      <span className="px-1.5 py-1.5 text-center">
-                        <span className="block truncate text-[10px] font-medium leading-tight text-slate-700">{slot.name}</span>
-                        <span className="mt-0.5 block text-[9px] capitalize text-slate-400">{slot.role}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Panneau d'édition inline */}
-                {activePaletteSlot !== null && (
-                  <div className="space-y-3 rounded-xl border border-black/10 bg-slate-50 p-3">
-                    {/* Rôle */}
-                    <div className="flex flex-wrap gap-1">
-                      {["dominante", "secondaire", "tierce", "accent"].map(r => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setGlobalPalette(prev => prev.map((s, i) => i === activePaletteSlot ? { ...s, role: r } : s))}
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium capitalize transition-all ${
-                            globalPalette[activePaletteSlot].role === r
-                              ? "bg-slate-900 text-white"
-                              : "border border-black/15 bg-white text-slate-600 hover:border-black/30"
-                          }`}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Présets tendance */}
-                    <div className="grid grid-cols-7 gap-1.5">
-                      {PALETTE_PRESETS.map(preset => (
-                        <button
-                          key={preset.hex}
-                          type="button"
-                          onClick={() => setGlobalPalette(prev => prev.map((s, i) => i === activePaletteSlot ? { ...s, hex: preset.hex, name: preset.name } : s))}
-                          title={preset.name}
-                          className={`h-7 rounded-lg border-2 transition-all ${
-                            globalPalette[activePaletteSlot].hex === preset.hex ? "border-slate-900" : "border-transparent hover:border-black/30"
-                          }`}
-                          style={{ backgroundColor: preset.hex }}
-                        />
-                      ))}
-                    </div>
-                    {/* Color picker custom */}
-                    <div className="flex items-center gap-2">
-                      <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="color"
-                          value={globalPalette[activePaletteSlot].hex}
-                          onChange={e => setGlobalPalette(prev => prev.map((s, i) => i === activePaletteSlot ? { ...s, hex: e.target.value, name: "Personnalisée" } : s))}
-                          className="h-7 w-7 cursor-pointer rounded border border-black/15"
-                        />
-                        <span className="text-xs text-slate-500">Couleur libre</span>
-                      </label>
-                      <span className="ml-auto font-mono text-[11px] text-slate-400">{globalPalette[activePaletteSlot].hex}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Appliquer à toutes les pièces */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const dominant = globalPalette.find(s => s.role === "dominante");
-                    const secondary = globalPalette.find(s => s.role === "secondaire");
+              {(() => {
+                const ROLE_TO_ROOM_KEY = { dominante: "dominantColor", secondaire: "secondaryColor", sol: "solColor" };
+                const applyColor = (slotKey, hex, name) => {
+                  setGlobalPalette(prev => {
+                    if (slotKey.startsWith("accent-")) {
+                      const idx = parseInt(slotKey.split("-")[1]);
+                      const newAccents = [...prev.accents];
+                      newAccents[idx] = { hex, name };
+                      return { ...prev, accents: newAccents };
+                    }
+                    return { ...prev, [slotKey]: { hex, name } };
+                  });
+                  const roomKey = ROLE_TO_ROOM_KEY[slotKey];
+                  if (roomKey) {
                     setRoomNuances(prev => {
                       const updated = { ...prev };
-                      orderedActiveRooms.forEach(key => {
-                        updated[key] = {
-                          ...(prev[key] || INITIAL_ROOM_NUANCES[key] || {}),
-                          ...(dominant ? { dominantColor: dominant.hex } : {}),
-                          ...(secondary ? { secondaryColor: secondary.hex } : {}),
-                        };
+                      orderedActiveRooms.forEach(k => {
+                        updated[k] = { ...(prev[k] || INITIAL_ROOM_NUANCES[k] || {}), [roomKey]: hex };
                       });
                       return updated;
                     });
-                  }}
-                  className="w-full rounded-lg border border-black/15 px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:border-black/30 hover:bg-slate-50"
-                >
-                  Appliquer la palette à toutes les pièces
-                </button>
-                <p className="text-[11px] text-amber-600">
-                  ⚠ Écrase les couleurs dominante et secondaire de chaque pièce. Les nuances (clair / moyen…) restent inchangées.
-                </p>
-              </div>
+                  }
+                };
+                const mainSlots = [
+                  { key: "dominante", label: "Dominante", ...globalPalette.dominante },
+                  { key: "secondaire", label: "Secondaire", ...globalPalette.secondaire },
+                  { key: "sol", label: "Sol", ...globalPalette.sol },
+                ];
+                const currentHex = activePaletteSlot
+                  ? activePaletteSlot.startsWith("accent-")
+                    ? globalPalette.accents[parseInt(activePaletteSlot.split("-")[1])]?.hex
+                    : globalPalette[activePaletteSlot]?.hex
+                  : null;
+                return (
+                  <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
+                    <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Palette globale</p>
+                    <h2 className="type-h2">Palette de l'appartement</h2>
+
+                    {/* Rangée 1 : dominante, secondaire, sol */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {mainSlots.map(slot => (
+                        <button
+                          key={slot.key}
+                          type="button"
+                          onClick={() => setActivePaletteSlot(activePaletteSlot === slot.key ? null : slot.key)}
+                          className={`flex flex-col overflow-hidden rounded-xl border transition-all ${
+                            activePaletteSlot === slot.key ? "border-slate-900 shadow-md" : "border-black/10 hover:border-black/30"
+                          }`}
+                        >
+                          <span className="block h-16 w-full" style={{ backgroundColor: slot.hex }} />
+                          <span className="px-1.5 py-1.5 text-center">
+                            <span className="block truncate text-[10px] font-medium leading-tight text-slate-700">{slot.name}</span>
+                            <span className="mt-0.5 block text-[9px] capitalize text-slate-400">{slot.label}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Rangée 2 : 3 accents */}
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-slate-500">Accents</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {globalPalette.accents.map((accent, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setActivePaletteSlot(activePaletteSlot === `accent-${i}` ? null : `accent-${i}`)}
+                            className={`flex flex-col overflow-hidden rounded-xl border transition-all ${
+                              activePaletteSlot === `accent-${i}` ? "border-slate-900 shadow-md" : "border-black/10 hover:border-black/30"
+                            }`}
+                          >
+                            <span className="block h-10 w-full" style={{ backgroundColor: accent.hex }} />
+                            <span className="px-1.5 py-1 text-center">
+                              <span className="block truncate text-[10px] font-medium leading-tight text-slate-700">{accent.name}</span>
+                              <span className="mt-0.5 block text-[9px] text-slate-400">Accent {i + 1}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Picker inline */}
+                    {activePaletteSlot !== null && currentHex && (
+                      <div className="space-y-3 rounded-xl border border-black/10 bg-slate-50 p-3">
+                        <div className="grid grid-cols-7 gap-1.5">
+                          {PALETTE_PRESETS.map(preset => (
+                            <button
+                              key={preset.hex}
+                              type="button"
+                              onClick={() => applyColor(activePaletteSlot, preset.hex, preset.name)}
+                              title={preset.name}
+                              className={`h-7 rounded-lg border-2 transition-all ${
+                                currentHex === preset.hex ? "border-slate-900" : "border-transparent hover:border-black/30"
+                              }`}
+                              style={{ backgroundColor: preset.hex }}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                              type="color"
+                              value={currentHex}
+                              onChange={e => applyColor(activePaletteSlot, e.target.value, "Personnalisée")}
+                              className="h-7 w-7 cursor-pointer rounded border border-black/15"
+                            />
+                            <span className="text-xs text-slate-500">Couleur libre</span>
+                          </label>
+                          <span className="ml-auto font-mono text-[11px] text-slate-400">{currentHex}</span>
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-slate-400">Chaque changement s'applique automatiquement à toutes les pièces.</p>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-4 rounded-xl border border-black/10 bg-white p-4">
                 <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Pièce active</p>
@@ -8419,7 +8567,10 @@ export default function App() {
                       const key = `${room}-${i}`;
                       return uploadedImages[key] ? [{ src: uploadedImages[key], key }] : [];
                     }),
-                    ...(materialsByRoom[room] || []).map((m, i) => ({ src: materialUploads[`${room}-material-${i}`] || m.src, key: `${room}-material-${i}` })),
+                    ...(materialsByRoom[room] || []).flatMap((m, i) => {
+                      const key = `${room}-material-${i}`;
+                      return materialUploads[key] ? [{ src: materialUploads[key], key }] : [];
+                    }),
                     ...(aiInspirations[room] || []).map((src, i) => ({ src, key: `${room}-ai-${i}` })),
                   ].filter((img) => img.src && !deletedImages[img.key])}
                 />
