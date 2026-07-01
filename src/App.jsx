@@ -5647,9 +5647,10 @@ function LoginScreen({ onSignIn, onSignInWithEmail, onSignUpWithEmail, onResetPa
 
     setFormLoading(true);
     if (mode === "signup") {
-      const { error, needsConfirmation } = await onSignUpWithEmail(email.trim(), password, fullName.trim());
+      const { error, needsConfirmation, alreadyRegistered } = await onSignUpWithEmail(email.trim(), password, fullName.trim());
       setFormLoading(false);
       if (error) { setFormError(translateAuthError(error)); return; }
+      if (alreadyRegistered) { setFormError("Un compte existe déjà avec cet email. Connecte-toi, ou utilise «Mot de passe oublié»."); return; }
       if (needsConfirmation) setSignupNeedsConfirmation(true);
     } else {
       const { error } = await onSignInWithEmail(email.trim(), password);
@@ -6315,6 +6316,7 @@ export default function App() {
   const [copyInviteSuccess, setCopyInviteSuccess] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
+  const mobileUserMenuRef = useRef(null);
   const projectPickerRef = useRef(null);
 
   // ── Projet ────────────────────────────────────────────────────────────────
@@ -7696,7 +7698,10 @@ export default function App() {
   useEffect(() => {
     if (!showUserMenu) return;
     const handler = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setShowUserMenu(false);
+      if (
+        userMenuRef.current && !userMenuRef.current.contains(e.target) &&
+        mobileUserMenuRef.current && !mobileUserMenuRef.current.contains(e.target)
+      ) setShowUserMenu(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -8231,7 +8236,7 @@ export default function App() {
               </svg>
               <span className="hidden sm:inline">{isSavingSnapshot ? "Sauvegarde…" : "Snapshot"}</span>
             </button>
-            <div className="relative" ref={userMenuRef}>
+            <div className="relative" ref={mobileUserMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowUserMenu((v) => !v)}

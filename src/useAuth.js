@@ -44,7 +44,10 @@ export function useAuth() {
         emailRedirectTo: window.location.origin,
       },
     });
-    return { error, needsConfirmation: !error && !data.session };
+    // Supabase renvoie un succès sans erreur explicite quand l'email a déjà un
+    // compte (protection anti-énumération) : `identities` est alors vide.
+    const alreadyRegistered = !error && data.user && data.user.identities?.length === 0;
+    return { error, needsConfirmation: !error && !alreadyRegistered && !data.session, alreadyRegistered };
   };
 
   const resetPassword = async (email) => {
