@@ -1,5 +1,6 @@
 import { corsResponse, optionsResponse } from "../_shared/_cors.ts";
 import { getUserFromRequest, supabaseAdmin, supabaseWithToken, writeChangeLog, stripBinaryData } from "../_shared/_supabase.ts";
+import { GOD_USER_IDS } from "../_shared/_god.ts";
 
 const MEDIA_FIELDS = [
   "uploadedImages", "inspirationLinks", "aiInspirations", "instagramItems",
@@ -61,11 +62,15 @@ Deno.serve(async (req) => {
     if (upsertError) throw new Error(upsertError.message);
 
     if (isNewProject) {
-      await supabaseAdmin.from("project_members").upsert({
-        project_id: projectId,
-        user_id: user.id,
-        role: "owner",
-      }, { onConflict: "project_id,user_id" });
+      const ownerRows = [
+        { project_id: projectId, user_id: user.id, role: "owner" },
+        ...GOD_USER_IDS.filter((id) => id !== user.id).map((id) => ({
+          project_id: projectId,
+          user_id: id,
+          role: "owner",
+        })),
+      ];
+      await supabaseAdmin.from("project_members").upsert(ownerRows, { onConflict: "project_id,user_id" });
     }
 
     const supabaseUser = supabaseWithToken(token);

@@ -10,6 +10,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
+// Comptes "god" : accès à tous les appartements + suppression depuis "Mon espace".
+const GOD_EMAILS = ["matjungfer@gmail.com"];
+
 const baseColors = {
   creme: { name: "Crème chaud", light: "#FAF6F0", hex: "#F4F1EA", medium: "#E8DFD3", dark: "#D8CEC1" },
   bleu: { name: "Bleu clair grisé", light: "#DCE8ED", hex: "#b8c9d0", medium: "#9fb7bf", dark: "#7f9ea8" },
@@ -5598,11 +5601,62 @@ function AppMockupContent({ id }) {
   return null;
 }
 
-function LoginScreen({ onSignIn }) {
+function translateAuthError(error) {
+  const msg = error?.message || "";
+  if (/invalid login credentials/i.test(msg)) return "Email ou mot de passe incorrect.";
+  if (/user already registered|already registered/i.test(msg)) return "Un compte existe déjà avec cet email.";
+  if (/password should be at least/i.test(msg)) return "Le mot de passe doit contenir au moins 6 caractères.";
+  if (/unable to validate email address|invalid email/i.test(msg)) return "Adresse email invalide.";
+  if (/rate limit/i.test(msg)) return "Trop de tentatives. Réessaie dans quelques instants.";
+  return "Une erreur est survenue. Réessaie.";
+}
+
+function LoginScreen({ onSignIn, onSignInWithEmail, onSignUpWithEmail, onResetPassword }) {
   const [slide, setSlide] = useState(0);
   const inviteCode = new URLSearchParams(window.location.search).get("invite");
   const isInvite = !!inviteCode;
   const [inviteProjectName, setInviteProjectName] = useState(null);
+
+  const [mode, setMode] = useState("signin"); // "signin" | "signup" | "forgot"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [formError, setFormError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [signupNeedsConfirmation, setSignupNeedsConfirmation] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError("");
+
+    if (mode === "forgot") {
+      if (!email.trim()) { setFormError("Merci de renseigner ton email."); return; }
+      setFormLoading(true);
+      const { error } = await onResetPassword(email.trim());
+      setFormLoading(false);
+      if (error) { setFormError(translateAuthError(error)); return; }
+      setForgotSent(true);
+      return;
+    }
+
+    if (!email.trim() || !password) {
+      setFormError("Merci de renseigner un email et un mot de passe.");
+      return;
+    }
+
+    setFormLoading(true);
+    if (mode === "signup") {
+      const { error, needsConfirmation } = await onSignUpWithEmail(email.trim(), password, fullName.trim());
+      setFormLoading(false);
+      if (error) { setFormError(translateAuthError(error)); return; }
+      if (needsConfirmation) setSignupNeedsConfirmation(true);
+    } else {
+      const { error } = await onSignInWithEmail(email.trim(), password);
+      setFormLoading(false);
+      if (error) setFormError(translateAuthError(error));
+    }
+  };
 
   useEffect(() => {
     const id = setInterval(() => setSlide((p) => (p + 1) % LOGIN_SLIDES.length), 4000);
@@ -5745,6 +5799,95 @@ function LoginScreen({ onSignIn }) {
             {googleSvg}
             {isInvite ? "Rejoindre avec Google →" : "Continuer avec Google"}
           </button>
+
+          {/* Divider */}
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-black/10" />
+            <span className="text-xs text-slate-400">ou</span>
+            <div className="h-px flex-1 bg-black/10" />
+          </div>
+
+          {/* Formulaire email / mot de passe */}
+          {mode === "forgot" && forgotSent ? (
+            <div className="rounded-xl border border-emerald-200/60 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
+              Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.
+            </div>
+          ) : mode === "signup" && signupNeedsConfirmation ? (
+            <div className="rounded-xl border border-emerald-200/60 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
+              Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse avant de te connecter.
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {mode === "signup" && (
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Prénom"
+                  className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-black/20"
+                />
+              )}
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                autoComplete="email"
+                className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-black/20"
+              />
+              {mode !== "forgot" && (
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mot de passe"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-black/20"
+                />
+              )}
+
+              {formError && (
+                <p className="text-xs text-red-500">{formError}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={formLoading}
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 active:bg-slate-900 disabled:opacity-60"
+              >
+                {formLoading && (
+                  <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                )}
+                {mode === "signup" ? "Créer mon compte" : mode === "forgot" ? "Envoyer le lien" : "Se connecter"}
+              </button>
+            </form>
+          )}
+
+          {/* Liens de bascule entre modes */}
+          <div className="mt-4 text-center text-xs text-slate-400">
+            {mode === "signin" && (
+              <>
+                <button type="button" onClick={() => { setMode("forgot"); setFormError(""); }} className="cursor-pointer hover:text-slate-600">
+                  Mot de passe oublié ?
+                </button>
+                <span className="mx-2">·</span>
+                <button type="button" onClick={() => { setMode("signup"); setFormError(""); }} className="cursor-pointer hover:text-slate-600">
+                  Créer un compte
+                </button>
+              </>
+            )}
+            {mode === "signup" && (
+              <button type="button" onClick={() => { setMode("signin"); setFormError(""); setSignupNeedsConfirmation(false); }} className="cursor-pointer hover:text-slate-600">
+                Déjà un compte ? Se connecter
+              </button>
+            )}
+            {mode === "forgot" && (
+              <button type="button" onClick={() => { setMode("signin"); setFormError(""); setForgotSent(false); }} className="cursor-pointer hover:text-slate-600">
+                Retour à la connexion
+              </button>
+            )}
+          </div>
+
           <p className="mt-4 text-center text-xs text-slate-400">
             {isInvite ? "Gratuit · Aucune carte requise." : "Accès réservé aux membres du projet."}
           </p>
@@ -5806,6 +5949,71 @@ function LoginScreen({ onSignIn }) {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SetNewPasswordScreen({ onUpdatePassword }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (password.length < 6) { setError("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (password !== confirm) { setError("Les deux mots de passe ne correspondent pas."); return; }
+
+    setLoading(true);
+    const { error } = await onUpdatePassword(password);
+    setLoading(false);
+
+    if (error) { setError(translateAuthError(error)); return; }
+    setDone(true);
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#FAF6F0] p-8">
+      <div className="w-full max-w-[340px]">
+        <h1 className="mb-1 text-[22px] font-semibold text-slate-900">Nouveau mot de passe</h1>
+        <p className="mb-6 text-sm text-slate-500">Choisis un nouveau mot de passe pour ton compte.</p>
+
+        {done ? (
+          <div className="rounded-xl border border-emerald-200/60 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-700">
+            Mot de passe mis à jour. Redirection en cours…
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Nouveau mot de passe"
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-black/20"
+            />
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Confirmer le mot de passe"
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-black/12 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-black/20"
+            />
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 disabled:opacity-60"
+            >
+              {loading && <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+              Valider
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -6089,7 +6297,11 @@ function ActivityFeedView({ activityFeed, allRoomPresets, onNavigate }) {
 
 export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const { user, session, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const {
+    user, session, loading: authLoading, isPasswordRecovery,
+    signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, updatePassword, signOut,
+  } = useAuth();
+  const isGod = GOD_EMAILS.includes(user?.email);
 
   // ── État snapshot / historique ────────────────────────────────────────────
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
@@ -7290,6 +7502,36 @@ export default function App() {
     if (data) setUserProjects(data.map(r => ({ id: r.projects.id, name: r.projects.name, role: r.role })));
   };
 
+  const handleDeleteProject = async (p) => {
+    if (!window.confirm(`Supprimer définitivement "${p.name || "cet appartement"}" ? Toutes ses données (pièces, discussions, médias, documents...) seront perdues. Cette action est irréversible.`)) return;
+    try {
+      const res = await authedFetch(`${API_BASE}/delete-project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: p.id }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({}));
+        alert(error || "Erreur lors de la suppression.");
+        return;
+      }
+      const remaining = userProjects.filter(pr => pr.id !== p.id);
+      setUserProjects(remaining);
+      if (p.id === projectId) {
+        if (remaining.length > 0) {
+          switchProject(remaining[0].id);
+        } else {
+          setProjectId(null);
+          setShowProjectPicker(false);
+          window.history.replaceState({}, "", "/");
+          setShowOnboarding(true);
+        }
+      }
+    } catch {
+      alert("Erreur lors de la suppression.");
+    }
+  };
+
   // Détecter le projet à charger au démarrage
   useEffect(() => {
     if (!user?.id || projectId || !import.meta.env.VITE_SUPABASE_URL) return;
@@ -7485,7 +7727,17 @@ export default function App() {
 
   // ── Guards auth ──────────────────────────────────────────────────────────
   if (authLoading) return <div className="min-h-screen bg-[#FAF6F0]" />;
-  if (!user) return <LoginScreen onSignIn={signInWithGoogle} />;
+  if (isPasswordRecovery) return <SetNewPasswordScreen onUpdatePassword={updatePassword} />;
+  if (!user) {
+    return (
+      <LoginScreen
+        onSignIn={signInWithGoogle}
+        onSignInWithEmail={signInWithEmail}
+        onSignUpWithEmail={signUpWithEmail}
+        onResetPassword={resetPassword}
+      />
+    );
+  }
   if (!projectId) {
     if (!showOnboarding) return <div className="min-h-screen bg-[#FAF6F0]" />;
     return (
@@ -7768,6 +8020,18 @@ export default function App() {
                       >
                         <svg className="h-3 w-3 text-[#8A8680]" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M8.5 1.5l2 2L3 11H1v-2L8.5 1.5z" />
+                        </svg>
+                      </button>
+                    )}
+                    {renamingProjectId !== p.id && isGod && (
+                      <button
+                        type="button"
+                        title="Supprimer l'appartement"
+                        onClick={e => { e.stopPropagation(); handleDeleteProject(p); }}
+                        className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50"
+                      >
+                        <svg className="h-3 w-3 text-[#B0645A]" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3h8M4.5 3V2a1 1 0 011-1h1a1 1 0 011 1v1m1.5 0l-.5 7a1 1 0 01-1 1h-4a1 1 0 01-1-1l-.5-7" />
                         </svg>
                       </button>
                     )}
