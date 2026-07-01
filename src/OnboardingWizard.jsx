@@ -29,6 +29,12 @@ function fileToDataUrl(file) {
   });
 }
 
+function extFromDataUrl(dataUrl) {
+  const mime = dataUrl.match(/^data:([^;]+)/)?.[1] || "image/jpeg";
+  const ext = mime.split("/")[1] || "jpg";
+  return ext === "jpeg" ? "jpg" : ext;
+}
+
 export function OnboardingWizard({ user, session, onComplete, onJoinProject, onSkip, signOut, initialStep = "welcome" }) {
   const [step, setStep] = useState(initialStep);
   const [direction, setDirection] = useState(1);
@@ -131,14 +137,18 @@ export function OnboardingWizard({ user, session, onComplete, onJoinProject, onS
         for (let i = 0; i < inspoFiles.length; i++) {
           try {
             const dataUrl = await fileToDataUrl(inspoFiles[i].file);
+            const targetRoom = inspoFiles[i].room || activeRoom;
+            // Generate a safe storage key — the original filename (e.g. macOS
+            // screenshots with curly quotes/combining accents) can be rejected
+            // by Supabase Storage and silently drop the photo.
+            const safeFilename = `inspo-${targetRoom}-${Date.now()}-${i}.${extFromDataUrl(dataUrl)}`;
             const res = await fetch(`${API_BASE}/upload-image`, {
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeader },
-              body: JSON.stringify({ dataUrl, filename: inspoFiles[i].name }),
+              body: JSON.stringify({ dataUrl, filename: safeFilename }),
             });
             if (res.ok) {
               const { url } = await res.json();
-              const targetRoom = inspoFiles[i].room || activeRoom;
               aiInspirations[targetRoom] = [...(aiInspirations[targetRoom] || []), url];
             }
           } catch {}
