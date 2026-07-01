@@ -8779,7 +8779,7 @@ export default function App() {
           <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
             {!isChatOpen && !chatBubbleDismissed && (
               <div
-                className="relative rounded-2xl bg-slate-900 px-4 py-2.5 shadow-xl max-w-[210px] text-right"
+                className="relative hidden sm:block rounded-2xl bg-slate-900 px-4 py-2.5 shadow-xl max-w-[210px] text-right"
                 style={{ animation: "chatBubbleIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both" }}
               >
                 <button
