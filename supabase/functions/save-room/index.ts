@@ -286,6 +286,35 @@ Deno.serve(async (req) => {
       return corsResponse(200, { ok: true, toggled: "added" });
     }
 
+    // --- media-upsert ---
+    if (action === "media-upsert" && req.method === "POST") {
+      const { projectId, mediaType, key, value } = body;
+      if (!projectId || !mediaType || key === undefined)
+        return corsResponse(400, { error: "projectId, mediaType et key requis." });
+
+      const { data: member } = await supabase.from("project_members").select("role").eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
+      if (!member) return corsResponse(403, { error: "Accès refusé." });
+
+      const { data: existing } = await supabase.from("room_media").select("data").eq("project_id", projectId).maybeSingle();
+      const currentData = (existing?.data as Record<string, unknown>) || {};
+      const currentType = (currentData[mediaType] as Record<string, unknown>) || {};
+
+      let merged: Record<string, unknown>;
+      if (value === null) {
+        const { [key]: _removed, ...rest } = currentType;
+        merged = { ...currentData, [mediaType]: rest };
+      } else {
+        merged = { ...currentData, [mediaType]: { ...currentType, [key]: value } };
+      }
+
+      const { error } = await supabase.from("room_media").upsert(
+        { project_id: projectId, data: merged, updated_at: new Date().toISOString() },
+        { onConflict: "project_id" }
+      );
+      if (error) throw new Error(error.message);
+      return corsResponse(200, { ok: true });
+    }
+
     return corsResponse(405, { error: "Méthode ou action non supportée." });
   } catch (err) {
     return corsResponse(500, { error: (err as Error).message || "Erreur lors de la sauvegarde." });

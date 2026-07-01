@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
   if (!user || !token) return corsResponse(401, { error: "Authentification requise." });
 
   const body = await req.json();
-  const { state, id, snapshot, snapshotLabel, name } = body;
+  const { state, id, snapshot, snapshotLabel, name, metaOnly } = body;
 
   if (!state) return corsResponse(400, { error: "state requis." });
 
@@ -70,17 +70,20 @@ Deno.serve(async (req) => {
 
     const supabaseUser = supabaseWithToken(token);
 
-    const mediaData = Object.fromEntries(
-      MEDIA_FIELDS.map((field) => [field, (state as Record<string, unknown>)[field] ?? {}])
-    );
-    const { error: mediaUpsertError } = await supabaseUser
-      .from("room_media")
-      .upsert(
-        { project_id: projectId, data: mediaData, updated_at: new Date().toISOString() },
-        { onConflict: "project_id" },
+    // En mode metaOnly, on ne touche pas room_media (évite d'écraser les saves atomiques par action)
+    if (!metaOnly) {
+      const mediaData = Object.fromEntries(
+        MEDIA_FIELDS.map((field) => [field, (state as Record<string, unknown>)[field] ?? {}])
       );
-    if (mediaUpsertError) {
-      return corsResponse(500, { error: mediaUpsertError.message, id: projectId });
+      const { error: mediaUpsertError } = await supabaseUser
+        .from("room_media")
+        .upsert(
+          { project_id: projectId, data: mediaData, updated_at: new Date().toISOString() },
+          { onConflict: "project_id" },
+        );
+      if (mediaUpsertError) {
+        return corsResponse(500, { error: mediaUpsertError.message, id: projectId });
+      }
     }
 
     if (state.roomNuances && typeof state.roomNuances === "object") {
